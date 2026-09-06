@@ -20,6 +20,28 @@ Requires **Node.js 18 or later and npm** on Windows, macOS, or Linux. No TypeScr
 
 ## Connect a project
 
+### Start with your coding agent
+
+Paste this prompt into an agent that can run terminal commands and read project files. Replace `PROJECT` with your existing JoripSpace project name:
+
+```text
+Help me get started with JoripSpace project "PROJECT".
+1. Install or update the official CLI with npm install -g @joripspace/cli@latest.
+2. Run joripspace start PROJECT --json. Read the returned onboarding instructions
+   and agent documents, and complete the connection following those instructions.
+3. Review the existing project and guide me through the next steps to build and deploy.
+```
+
+`start` returns an inline guide and writes the same guide into the managed block of `AGENTS.md`. It preserves user content and maintains the existing `CLAUDE.md` reference. Agents must read these instructions in the current conversation even when automatic discovery is unavailable. No plugin, skill installation, or agent restart is required.
+
+The additive `onboarding` object contains `schema_version`, `instructions`, `read_files`, `invocation`, and `commands`. `invocation.command` is an absolute executable; append arguments after `invocation.args` and use `invocation.cwd`. For npm installations this invokes Node with the JavaScript entrypoint. The same guide and structured login/resume commands are returned in `error.details.onboarding` when authentication is required. Replace only the `CONNECTION_CODE` argument with the approved code. Never log credentials.
+
+If the global executable is not on PATH, run `npm root -g`, locate `@joripspace/cli/bin/joripspace.js` under that directory, and execute it with Node. If the global install directory is not writable, use `npx -y @joripspace/cli@latest start PROJECT --json` instead.
+
+The workflow requires terminal, filesystem, and network access. Individual agents may require tool approvals or manual reading of project instructions. Generating a document does not prove that an agent loaded it; follow the inline instructions and verify the actual commands.
+
+### Connect from your terminal
+
 Run commands from your project directory. Quote paths containing spaces or non-ASCII characters.
 
 ```sh
@@ -50,11 +72,11 @@ You can continue using npx instead. Global installation and permanent PATH chang
 
 Use `--help`, `deploy --help`, `deploy-template --help`, or `install-template --help` for the supported commands and options. Existing functionality includes authentication, project inspection, deployment, templates, checkpoints, databases, storage, realtime v2, secrets, cron jobs, domains, mail, usage, and events. Operations restricted to the web interface remain restricted.
 
-The CLI preserves existing output formats and exit codes `0`, `1`, and `2`. With `--json`, successful results go to stdout and errors go to stderr. CLI messages retain their existing language; this release updates the package documentation and description.
+The CLI preserves existing result fields and exit codes `0`, `1`, and `2`, with the additive `onboarding` object described above. With `--json`, successful results go to stdout and errors go to stderr. User-facing explanations should follow the user's language; the shared agent guide is English.
 
 Installation and ordinary API commands require only Node.js and npm. Existing GitHub source connection and Git history synchronization features also require Git. Interactive `start` opens the browser using Windows `cmd.exe`, macOS `open`, or Linux `xdg-open`. If opening a browser fails, you can open the printed URL yourself.
 
-The `executable` field in a `start` response is the absolute path to the JavaScript entrypoint. Use `node "path/to/entrypoint" ...` or npx to run it. The `login_command`, `resume_command`, and `install_command` fields include the Node.js executable. In PowerShell, prefix a quoted executable path with the call operator `&`. JSON keys and structure remain unchanged.
+The `executable` field in a `start` response remains the absolute path to the JavaScript entrypoint. Prefer the new structured `onboarding.invocation` and `onboarding.commands` fields when your execution tool supports argument arrays. The legacy `login_command`, `resume_command`, and `install_command` strings remain available. In PowerShell, prefix a quoted executable path with the call operator `&`.
 
 ## Development and package verification
 
@@ -74,10 +96,10 @@ Set `JORIPSPACE_BASELINE_CLI` to the original `bin/joripspace.js` path to compar
 To try a tarball before publishing, use its absolute path:
 
 ```sh
-npm exec --yes --package="/absolute/path/joripspace-cli-0.4.2.tgz" -- joripspace --help
+npm exec --yes --package="/absolute/path/joripspace-cli-0.5.0.tgz" -- joripspace --help
 ```
 
-On Windows, use a path such as `C:/path/to/joripspace-cli-0.4.2.tgz`. Detailed engineering records are available in [verification](docs/verification.md) and [packaging](docs/packaging.md) (Korean).
+On Windows, use a path such as `C:/path/to/joripspace-cli-0.5.0.tgz`. Detailed engineering records are available in [verification](docs/verification.md) and [packaging](docs/packaging.md) (Korean).
 
 ## License
 

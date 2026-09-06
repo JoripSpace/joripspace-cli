@@ -10,6 +10,7 @@ const {
   upsertClaudeAgentsReference,
   validGitBranch,
   redactGitDiagnostic,
+  createStartOnboarding,
 } = require('../lib/start');
 
 function fixture() {
@@ -29,6 +30,29 @@ function apiFor(projects, details = {}) {
     return { project_id: 'heyenterc', project_slug: 'heyenterc', ...details };
   };
 }
+
+test('agent onboarding is inline, portable, and executable without shell argument parsing', () => {
+  const { root, workspace } = fixture();
+  try {
+    const specialCwd = path.join(workspace, '한글 space $value & literal');
+    mkdirSync(specialCwd);
+    const entry = path.resolve(__dirname, '../bin/joripspace.js');
+    const result = createStartOnboarding(entry, specialCwd, 'demo', false, 'https://example.invalid');
+    assert.equal(result.schema_version, 1);
+    assert.deepEqual(result.read_files, []);
+    assert.match(result.instructions, /Read onboarding.read_files explicitly/);
+    assert.doesNotMatch(result.instructions, /https:\/\/api\.joripspace\.com\/onboarding\.md|winget install/);
+    assert.deepEqual(result.invocation, { command: process.execPath, args: [entry], cwd: specialCwd });
+    assert.ok(result.commands.login.args.includes('CONNECTION_CODE'));
+    assert.equal(result.commands.resume.args[result.commands.resume.args.indexOf('--cwd') + 1], specialCwd);
+    const help = result.commands.help;
+    const run = require('node:child_process').spawnSync(help.command, help.args, { cwd: help.cwd, encoding: 'utf8', windowsHide: true });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /JoripSpace/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 function generatedLegacyProject(overrides = {}) {
   const core = require('../vendor/core/onboarding.cjs');
@@ -70,6 +94,7 @@ test('start links an existing project with the canonical three-file contract and
       'executable',
       'next_action',
       'ok',
+      'onboarding',
       'project',
       'template_choice',
     ]);
@@ -77,6 +102,11 @@ test('start links an existing project with the canonical three-file contract and
     assert.equal(first.executable, path.resolve(home, 'bin', 'joripspace.exe'));
     assert.equal(first.continue_with, 'cli');
     assert.equal(first.next_action, 'continue-development');
+    assert.deepEqual(first.onboarding.read_files, [path.join(workspace, 'AGENTS.md'), path.join(workspace, 'CLAUDE.md')]);
+    assert.ok(readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8').includes(first.onboarding.instructions));
+    assert.equal(JSON.stringify(first.onboarding).includes(options.apiToken), false);
+    assert.equal(readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8').includes(home), false);
+    assert.equal(first.onboarding.commands.login, undefined);
     assert.equal(first.template_choice, null);
     assert.equal(first.context.description, 'Existing service');
     assert.equal(first.context.project_status, 'active');

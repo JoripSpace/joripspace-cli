@@ -698,6 +698,10 @@ test('start selection and conflict states use a nonzero incomplete exit code', a
     assert.match(connectionError.error.details.login_command, / login --code "CONNECTION_CODE" /);
     assert.match(connectionError.error.details.resume_command, / start "demo" --cwd /);
     assert.equal(connectionError.error.details.continue_with, 'cli');
+    assert.equal(connectionError.error.details.onboarding.schema_version, 1);
+    assert.deepEqual(connectionError.error.details.onboarding.read_files, []);
+    assert.match(connectionError.error.details.onboarding.instructions, /five-minute one-time code/);
+    assert.equal(connectionError.error.details.onboarding.commands.login.args.includes('CONNECTION_CODE'), true);
 
     fs.writeFileSync(path.join(workspace, '.joripspace', 'project'), 'other\n');
     const conflict = await runCli(
@@ -709,6 +713,7 @@ test('start selection and conflict states use a nonzero incomplete exit code', a
     const conflictError = JSON.parse(conflict.stderr);
     assert.equal(conflictError.error.code, 'project_conflict');
     assert.equal(conflictError.error.details.existing_project, 'other');
+    assert.deepEqual(conflictError.error.details.onboarding.read_files, []);
   } finally {
     await api.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -773,6 +778,7 @@ test('start exchanges a connection code and continues in the same process withou
       'executable',
       'next_action',
       'ok',
+      'onboarding',
       'project',
       'template_choice',
     ]);

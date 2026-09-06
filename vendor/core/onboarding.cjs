@@ -1,3 +1,4 @@
+const { JORIPSPACE_CLI_GUIDE, JORIPSPACE_NPM_ONBOARDING_DOCUMENT } = require('./cli-onboarding.cjs');
 const { projectGithubActionsTemplateFile } = require('./github-workflow.cjs');
 const { templateGithubActionsPublishFile } = require('./template-publish-workflow.cjs');
 
@@ -707,7 +708,7 @@ function projectAgentsFile() {
   return [
     '<!-- joripspace:start -->',
     '',
-    'Before working on this project, read `https://api.joripspace.com/onboarding.md`.',
+    JORIPSPACE_CLI_GUIDE,
     '',
     'The JoripSpace project is stored in `.joripspace/project`.',
     '',
@@ -2368,6 +2369,8 @@ function projectAgentSessionFile(projectConfig = {}) {
 }
 
 module.exports = {
+  JORIPSPACE_CLI_GUIDE,
+  JORIPSPACE_NPM_ONBOARDING_DOCUMENT,
   JORIPSPACE_AGENT_GUIDE_UPDATED_AT,
   JORIPSPACE_WORKFLOW_POLICY,
   JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES,
