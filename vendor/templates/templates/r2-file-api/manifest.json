@@ -1,0 +1,7 @@
+{
+  "id": "r2-file-api",
+  "name": "R2 File API",
+  "description": "PUT and GET files through the project R2 bucket.",
+  "entrypoint": "worker.js",
+  "tags": ["starter", "r2", "api"]
+}

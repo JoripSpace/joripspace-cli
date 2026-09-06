@@ -1,0 +1,43 @@
+{
+  "name": "@joripspace/cli",
+  "version": "0.4.1",
+  "description": "JoripSpace Control API command-line client for Node.js",
+  "type": "commonjs",
+  "bin": {
+    "joripspace": "bin/joripspace.js"
+  },
+  "homepage": "https://joripspace.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JoripSpace/joripspace-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JoripSpace/joripspace-cli/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin/joripspace.js",
+    "lib/*.js",
+    "vendor/core/*.cjs",
+    "vendor/templates/index.js",
+    "vendor/templates/templates/**",
+    "README.md"
+  ],
+  "scripts": {
+    "check": "node scripts/check-package.mjs",
+    "test": "node scripts/test.mjs",
+    "test:package": "node scripts/verify-package.mjs",
+    "prepack": "node scripts/check-package.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "jsonc-parser": "^3.3.1",
+    "smol-toml": "^1.7.2"
+  }
+}

@@ -1,0 +1,7 @@
+node_modules/
+*.tgz
+.artifacts/
+.env
+.env.*
+.npmrc
+.DS_Store

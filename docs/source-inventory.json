@@ -1,0 +1,296 @@
+{
+  "source_commit": "0d82b0ccdac5350601626d4181e29b3b5b98cccc",
+  "hash_normalization": "UTF-8 LF",
+  "top_level_commands": [
+    "version",
+    "login",
+    "me",
+    "projects",
+    "billing-projects",
+    "billing-usage",
+    "invoices",
+    "link",
+    "start",
+    "create",
+    "get",
+    "db",
+    "storage",
+    "deploy",
+    "templates",
+    "template",
+    "knowledge",
+    "deployment",
+    "template-pull",
+    "deploy-template",
+    "install-template",
+    "deployments",
+    "checkpoint",
+    "checkpoints",
+    "realtime-v2",
+    "rollback",
+    "events",
+    "logs",
+    "usage",
+    "usage-summary",
+    "usage-breakdown",
+    "tokens",
+    "crons",
+    "domains",
+    "secrets",
+    "mail",
+    "webhooks",
+    "token",
+    "secret",
+    "cron",
+    "domain",
+    "webhook",
+    "delete"
+  ],
+  "files": [
+    {
+      "source": "packages/cli/bin/installer-entry.js",
+      "destination": "bin/installer-entry.js",
+      "original_sha256_lf": "7814d9058edb455b0fbd27a6589a69ed1197926bdd3c7c34428c051638808e6a",
+      "copied_sha256_lf": "7814d9058edb455b0fbd27a6589a69ed1197926bdd3c7c34428c051638808e6a",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/bin/joripspace.js",
+      "destination": "bin/joripspace.js",
+      "original_sha256_lf": "f00ce3c6ce706e7a031131da95b6ca463b5a1ae46576476222298a26699ab64d",
+      "copied_sha256_lf": "eb57eb1d676696ed8ff6aeb38e722de7793d47c8a6ace4569f9c0ee5449d3aaf",
+      "modified": true
+    },
+    {
+      "source": "packages/cli/lib/checkpoint-client.js",
+      "destination": "lib/checkpoint-client.js",
+      "original_sha256_lf": "4d7b9a308b8fd652a9f013ff98ec5776b13ea869fd0bb1216aeb0832883be408",
+      "copied_sha256_lf": "4d7b9a308b8fd652a9f013ff98ec5776b13ea869fd0bb1216aeb0832883be408",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/checkpoint-commands.js",
+      "destination": "lib/checkpoint-commands.js",
+      "original_sha256_lf": "05b62d47d7b2502c7e6cd115dcfa552d85934c3027f689b0e5a66d1aa4ef7ca6",
+      "copied_sha256_lf": "05b62d47d7b2502c7e6cd115dcfa552d85934c3027f689b0e5a66d1aa4ef7ca6",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/deploy-files.js",
+      "destination": "lib/deploy-files.js",
+      "original_sha256_lf": "50ced99a2559aeca6c1f7c5ca5779dbcdab192f4f62299867291f2a290296a88",
+      "copied_sha256_lf": "50ced99a2559aeca6c1f7c5ca5779dbcdab192f4f62299867291f2a290296a88",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/deployment-error.js",
+      "destination": "lib/deployment-error.js",
+      "original_sha256_lf": "ded423e7c615dfcbb3c152a2c0b1a41f3eb7e435a4ec741fdc5be2529c1e6f65",
+      "copied_sha256_lf": "ded423e7c615dfcbb3c152a2c0b1a41f3eb7e435a4ec741fdc5be2529c1e6f65",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/help.js",
+      "destination": "lib/help.js",
+      "original_sha256_lf": "c98b7a6b572180922633a79534ee960a16f9d25c23a84fdbd0ad0c3cbf378b97",
+      "copied_sha256_lf": "c98b7a6b572180922633a79534ee960a16f9d25c23a84fdbd0ad0c3cbf378b97",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/installer-args.js",
+      "destination": "lib/installer-args.js",
+      "original_sha256_lf": "f019521fb2af81f627a0769a6fd983d8d83b7e94e19ed09646c2d7cc06143e21",
+      "copied_sha256_lf": "f019521fb2af81f627a0769a6fd983d8d83b7e94e19ed09646c2d7cc06143e21",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/installer-target.js",
+      "destination": "lib/installer-target.js",
+      "original_sha256_lf": "7e7f8a7a31986e631852209f03e76ac18255563c216c630bba1f0f9e59dc51b7",
+      "copied_sha256_lf": "7e7f8a7a31986e631852209f03e76ac18255563c216c630bba1f0f9e59dc51b7",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/mcp-config.js",
+      "destination": "lib/mcp-config.js",
+      "original_sha256_lf": "a43b6ee644f19ed3e102c0dfb0a93d1a7ca78f527547361f5d370ea0cfb879cd",
+      "copied_sha256_lf": "a43b6ee644f19ed3e102c0dfb0a93d1a7ca78f527547361f5d370ea0cfb879cd",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/project-env.js",
+      "destination": "lib/project-env.js",
+      "original_sha256_lf": "6faf2b75114511d1d8157a022b5be073b2540fc8da4afe33a19edbd1b1ebac07",
+      "copied_sha256_lf": "6faf2b75114511d1d8157a022b5be073b2540fc8da4afe33a19edbd1b1ebac07",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/project-paths.js",
+      "destination": "lib/project-paths.js",
+      "original_sha256_lf": "cae34f5e3abd74c1ce3bfdbd6ca3dd4fa82bdde6893594f473b6d8ea41ee366e",
+      "copied_sha256_lf": "cae34f5e3abd74c1ce3bfdbd6ca3dd4fa82bdde6893594f473b6d8ea41ee366e",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/realtime-v2-commands.js",
+      "destination": "lib/realtime-v2-commands.js",
+      "original_sha256_lf": "632c714a98fda3094cb4573cf97a02cc1b4861519c3165d0ff21a9ad84bbfbe6",
+      "copied_sha256_lf": "632c714a98fda3094cb4573cf97a02cc1b4861519c3165d0ff21a9ad84bbfbe6",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/remote-commands.js",
+      "destination": "lib/remote-commands.js",
+      "original_sha256_lf": "952c61fe44459ab98428769de4d3e557a0419e0ae9ee116bbbea350e8d342b9a",
+      "copied_sha256_lf": "952c61fe44459ab98428769de4d3e557a0419e0ae9ee116bbbea350e8d342b9a",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/lib/start-command.js",
+      "destination": "lib/start-command.js",
+      "original_sha256_lf": "b76f6ffe2729503980416a6358986d1f382858195a77b5ed3e5eaee40cafcb41",
+      "copied_sha256_lf": "a1a861f68d6e92c772599280dcb487971c71ddbb9df9978de3493ada8e10ee66",
+      "modified": true
+    },
+    {
+      "source": "packages/cli/lib/start.js",
+      "destination": "lib/start.js",
+      "original_sha256_lf": "b2584bc88ff86660749fb1a09176d8d1d8c76fe48dc4b2b16189b247ed89b7b2",
+      "copied_sha256_lf": "721c8bb9756649f1e958d08e308ab2b1fb2b637c65ab74c8a457638b7949ea80",
+      "modified": true
+    },
+    {
+      "source": "packages/cli/lib/template-commands.js",
+      "destination": "lib/template-commands.js",
+      "original_sha256_lf": "ac00a20bcc81771b1a6a3687fd3137b97dc601240fc1dc66f44ff089e861b4d6",
+      "copied_sha256_lf": "ac00a20bcc81771b1a6a3687fd3137b97dc601240fc1dc66f44ff089e861b4d6",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/checkpoint-client.test.js",
+      "destination": "test/checkpoint-client.test.js",
+      "original_sha256_lf": "78b802e602255874028253f73941505e9afcc444fe8ed2943ef5200ceac1c0b9",
+      "copied_sha256_lf": "78b802e602255874028253f73941505e9afcc444fe8ed2943ef5200ceac1c0b9",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/cli-commands.test.js",
+      "destination": "test/cli-commands.test.js",
+      "original_sha256_lf": "21578053f163c2f6a0f47cdb1cc2dda8f93d6d68604ebde072bd7a8eda51eb1a",
+      "copied_sha256_lf": "21578053f163c2f6a0f47cdb1cc2dda8f93d6d68604ebde072bd7a8eda51eb1a",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/deploy-files.test.js",
+      "destination": "test/deploy-files.test.js",
+      "original_sha256_lf": "881dc06baf0ecbe3674bf509c5588da8b64ad14f9b8fb80fecbd1d9c21e77e23",
+      "copied_sha256_lf": "881dc06baf0ecbe3674bf509c5588da8b64ad14f9b8fb80fecbd1d9c21e77e23",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/installer-args.test.js",
+      "destination": "test/installer-args.test.js",
+      "original_sha256_lf": "e8a3589e2ea55f3940763687ec7f44e41a7e20eade47dc4c7809a54359729cad",
+      "copied_sha256_lf": "e8a3589e2ea55f3940763687ec7f44e41a7e20eade47dc4c7809a54359729cad",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/installer-target.test.js",
+      "destination": "test/installer-target.test.js",
+      "original_sha256_lf": "3d03710931718ebf3266b6ecd3798b7ef81f8d2ad5672d05eff831479b65a0dc",
+      "copied_sha256_lf": "3d03710931718ebf3266b6ecd3798b7ef81f8d2ad5672d05eff831479b65a0dc",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/mcp-config.test.js",
+      "destination": "test/mcp-config.test.js",
+      "original_sha256_lf": "fe91d20c053eab57d47fd114af1c411f82779da5a72460d6fa57c858b5eea84b",
+      "copied_sha256_lf": "fe91d20c053eab57d47fd114af1c411f82779da5a72460d6fa57c858b5eea84b",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/project-env.test.js",
+      "destination": "test/project-env.test.js",
+      "original_sha256_lf": "09ba6e3c491eb7abbe920c25feac8bf430bfc5aa4f9713c29459038b8c8e0313",
+      "copied_sha256_lf": "09ba6e3c491eb7abbe920c25feac8bf430bfc5aa4f9713c29459038b8c8e0313",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/project-paths.test.js",
+      "destination": "test/project-paths.test.js",
+      "original_sha256_lf": "8c940e0f2e7e50f0e30023eaaadc82421aa3d6e210df29ae762f68586e27a3ec",
+      "copied_sha256_lf": "8c940e0f2e7e50f0e30023eaaadc82421aa3d6e210df29ae762f68586e27a3ec",
+      "modified": false
+    },
+    {
+      "source": "packages/cli/test/start.test.js",
+      "destination": "test/start.test.js",
+      "original_sha256_lf": "9e63561450d610e65fa6c6eb8a2bab884042e178b57e793b04bb5764f1f1eb30",
+      "copied_sha256_lf": "93a564ff85b3c02a898ba8418248f20a7fea804e1ce64c7c8dfbe05026a1dee9",
+      "modified": true
+    },
+    {
+      "source": "packages/cli/test/template-history.test.js",
+      "destination": "test/template-history.test.js",
+      "original_sha256_lf": "7ff0137603e6c3a6496557d0ebf91121569c1f0d27749f3d190dd837aa9a1367",
+      "copied_sha256_lf": "7ff0137603e6c3a6496557d0ebf91121569c1f0d27749f3d190dd837aa9a1367",
+      "modified": false
+    },
+    {
+      "source": "packages/core/github-workflow.cjs",
+      "destination": "vendor/core/github-workflow.cjs",
+      "original_sha256_lf": "7df43747f01f01be99ed248b1c2ff01caad233f5fcfe568d065a006945bcf5ac",
+      "copied_sha256_lf": "7df43747f01f01be99ed248b1c2ff01caad233f5fcfe568d065a006945bcf5ac",
+      "modified": false
+    },
+    {
+      "source": "packages/core/onboarding.cjs",
+      "destination": "vendor/core/onboarding.cjs",
+      "original_sha256_lf": "71aaec882f1ee08751fc4b7833f7d0a3c5651c6a2d5080d2935f4bb4342e1b34",
+      "copied_sha256_lf": "71aaec882f1ee08751fc4b7833f7d0a3c5651c6a2d5080d2935f4bb4342e1b34",
+      "modified": false
+    },
+    {
+      "source": "packages/core/template-publish-workflow.cjs",
+      "destination": "vendor/core/template-publish-workflow.cjs",
+      "original_sha256_lf": "865adc3023ba5a6a52c060a699ac0c74b1710905420ce61dcbcdddd63568e892",
+      "copied_sha256_lf": "865adc3023ba5a6a52c060a699ac0c74b1710905420ce61dcbcdddd63568e892",
+      "modified": false
+    },
+    {
+      "source": "packages/templates/index.js",
+      "destination": "vendor/templates/index.js",
+      "original_sha256_lf": "c0a6678f889cc7c2e3777ae1cfeab532c9235ef19d0496e097be142b287fa557",
+      "copied_sha256_lf": "c0a6678f889cc7c2e3777ae1cfeab532c9235ef19d0496e097be142b287fa557",
+      "modified": false
+    },
+    {
+      "source": "packages/templates/templates/basic-worker/files/worker.js",
+      "destination": "vendor/templates/templates/basic-worker/files/worker.js",
+      "original_sha256_lf": "8ee2d5c2f022d65d23630e83df1ffa1eb5f7206b900e268ed6595784b2f1b5c0",
+      "copied_sha256_lf": "8ee2d5c2f022d65d23630e83df1ffa1eb5f7206b900e268ed6595784b2f1b5c0",
+      "modified": false
+    },
+    {
+      "source": "packages/templates/templates/basic-worker/manifest.json",
+      "destination": "vendor/templates/templates/basic-worker/manifest.json",
+      "original_sha256_lf": "6b27e96705282a13e9ad3c295b66f96366ba26fb5facc66fa14ceb3a9f0072fe",
+      "copied_sha256_lf": "6b27e96705282a13e9ad3c295b66f96366ba26fb5facc66fa14ceb3a9f0072fe",
+      "modified": false
+    },
+    {
+      "source": "packages/templates/templates/r2-file-api/files/worker.js",
+      "destination": "vendor/templates/templates/r2-file-api/files/worker.js",
+      "original_sha256_lf": "9d4955b5eeb644a4e65be40bacd1fc8b67fb4fe1039823f39a9eeec2df17db5d",
+      "copied_sha256_lf": "9d4955b5eeb644a4e65be40bacd1fc8b67fb4fe1039823f39a9eeec2df17db5d",
+      "modified": false
+    },
+    {
+      "source": "packages/templates/templates/r2-file-api/manifest.json",
+      "destination": "vendor/templates/templates/r2-file-api/manifest.json",
+      "original_sha256_lf": "4871e4ae24ada9f3888cc949fb01a5d47f76e00670c1b64cdaa2205251ac8490",
+      "copied_sha256_lf": "4871e4ae24ada9f3888cc949fb01a5d47f76e00670c1b64cdaa2205251ac8490",
+      "modified": false
+    }
+  ]
+}

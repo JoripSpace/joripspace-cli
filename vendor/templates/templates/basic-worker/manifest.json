@@ -1,0 +1,14 @@
+{
+  "id": "basic-worker",
+  "name": "Basic Server",
+  "description": "Plain text server response for smoke tests and first deploys.",
+  "entrypoint": "worker.js",
+  "tags": ["starter", "http"],
+  "variables": [
+    {
+      "name": "MESSAGE",
+      "description": "Response body text.",
+      "default": "Hello from JoripSpace"
+    }
+  ]
+}
