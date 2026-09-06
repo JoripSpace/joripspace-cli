@@ -1,4 +1,6 @@
 name: Node CLI package verification
+# Build only in the runner's temporary disk. Do not upload artifacts, cache dependencies,
+# or publish to GitHub Packages: this workflow must not consume paid GitHub storage.
 on:
   push:
   pull_request:

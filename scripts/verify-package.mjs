@@ -32,6 +32,7 @@ Object.assign(env, {
 });
 writeFileSync(env.npm_config_userconfig, '');
 mkdirSync(join(env.npm_config_prefix, 'bin'), { recursive: true });
+mkdirSync(join(env.npm_config_prefix, 'lib'), { recursive: true });
 function run(args, cwd = project) {
   return new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });

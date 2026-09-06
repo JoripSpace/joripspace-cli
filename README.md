@@ -1,6 +1,6 @@
 # JoripSpace CLI
 
-기존 CLI 0.4.1을 재사용한 Node.js 공통 패키지입니다. **현재 npm 공개 전이며**, 아래 명령은 최초 공개 후 사용할 수 있습니다.
+기존 CLI 0.4.1을 재사용한 Node.js 공통 패키지입니다. npm 레지스트리에 등록된 버전은 다음 명령으로 실행합니다.
 
 ```sh
 npx -y @joripspace/cli@latest --help
@@ -29,7 +29,7 @@ npx -y @joripspace/cli@latest get --cwd "내 프로젝트" --json
 
 ## 선택적 전역 설치
 
-최초 공개 후 다음 방식도 사용할 수 있습니다. 기본 안내는 npx이며 전역 설치나 영구 PATH 변경은 필수가 아닙니다.
+다음 방식도 사용할 수 있습니다. 기본 안내는 npx이며 전역 설치나 영구 PATH 변경은 필수가 아닙니다.
 
 ```sh
 npm install -g @joripspace/cli
@@ -65,6 +65,6 @@ npm exec --yes --package="/absolute/path/joripspace-cli-0.4.1.tgz" -- joripspace
 
 Windows에서는 해당 위치를 `C:/.../joripspace-cli-0.4.1.tgz`로 바꿉니다. 실제 결과와 OS별 미검증 범위는 [검증 기록](docs/verification.md), 원본·변경 범위와 최초 공개 조건은 [패키징 기록](docs/packaging.md)에 정리합니다.
 
-라이선스는 원본과 대상 저장소에서 확인되지 않아 임의로 지정하지 않았습니다. 최초 공개 전에 소유자가 배포 라이선스와 npm 조직 권한·버전 사용 가능 여부를 확정해야 합니다.
+라이선스는 원본과 대상 저장소에서 확인되지 않아 임의로 지정하지 않았습니다.
 
 설정 참고: [npm package.json](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/), [npm exec](https://docs.npmjs.com/cli/v11/commands/npm-exec/), [Node.js 지원 버전](https://nodejs.org/en/about/previous-releases).

@@ -193,7 +193,7 @@ test('project authentication rejects portable casing aliases without reading or 
       (error) => error?.code === 'non_canonical_workspace_path'
     );
     assert.equal(fs.readFileSync(alias, 'utf8'), 'JORIPSPACE_API_TOKEN=must-not-read\n');
-    assert.equal(fs.existsSync(path.join(root, '.env.joripspace')), process.platform === 'win32');
+    assert.deepEqual(fs.readdirSync(root), ['.EnV.JoRiPsPaCe']);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

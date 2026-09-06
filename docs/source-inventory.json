@@ -156,7 +156,7 @@
       "source": "packages/cli/lib/start.js",
       "destination": "lib/start.js",
       "original_sha256_lf": "b2584bc88ff86660749fb1a09176d8d1d8c76fe48dc4b2b16189b247ed89b7b2",
-      "copied_sha256_lf": "721c8bb9756649f1e958d08e308ab2b1fb2b637c65ab74c8a457638b7949ea80",
+      "copied_sha256_lf": "20ce92ef4fc59a5ad034f39ce3862d002994b4dae5e60027d3a7e8b22387caa7",
       "modified": true
     },
     {
@@ -212,8 +212,8 @@
       "source": "packages/cli/test/project-env.test.js",
       "destination": "test/project-env.test.js",
       "original_sha256_lf": "09ba6e3c491eb7abbe920c25feac8bf430bfc5aa4f9713c29459038b8c8e0313",
-      "copied_sha256_lf": "09ba6e3c491eb7abbe920c25feac8bf430bfc5aa4f9713c29459038b8c8e0313",
-      "modified": false
+      "copied_sha256_lf": "bb2c407aab79979304eba3028ee4326848b5e357bf7c357784f940e8b4db5899",
+      "modified": true
     },
     {
       "source": "packages/cli/test/project-paths.test.js",
@@ -226,7 +226,7 @@
       "source": "packages/cli/test/start.test.js",
       "destination": "test/start.test.js",
       "original_sha256_lf": "9e63561450d610e65fa6c6eb8a2bab884042e178b57e793b04bb5764f1f1eb30",
-      "copied_sha256_lf": "93a564ff85b3c02a898ba8418248f20a7fea804e1ce64c7c8dfbe05026a1dee9",
+      "copied_sha256_lf": "5aca357072f490077ebe39483dc81bdc85177d23fb216e97c90b3fc9e65bfad5",
       "modified": true
     },
     {

@@ -276,7 +276,7 @@ test('a new empty project embeds the marketplace template choice before project 
   }
 });
 
-test('start safely migrates generated legacy workspace metadata and package helpers', async () => {
+for (const viaAlias of [false, true]) test(`start safely migrates generated legacy workspace metadata (${viaAlias ? 'root alias' : 'direct root'})`, async () => {
   const { root, workspace } = fixture();
   const core = require('../vendor/core/onboarding.cjs');
   const config = generatedLegacyProject();
@@ -309,9 +309,11 @@ test('start safely migrates generated legacy workspace metadata and package help
       `${JSON.stringify({ private: true, scripts: core.projectPackageHelperScripts(), dependencies: { fflate: '^0.8.2' } }, null, 2)}\n`
     );
 
+    const selectedWorkspace = viaAlias ? path.join(root, 'workspace-alias') : workspace;
+    if (viaAlias) fs.symlinkSync(workspace, selectedWorkspace, process.platform === 'win32' ? 'junction' : 'dir');
     const result = await startProject({
       projectId: 'heyenterc',
-      cwd: workspace,
+      cwd: selectedWorkspace,
       apiToken: 'token',
       apiRequest: apiFor([{ project_slug: 'heyenterc', name: 'heyenterc' }]),
       configureMcpServers: () => [],
