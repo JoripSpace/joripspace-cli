@@ -1,5 +1,17 @@
 # 실행 검증 기록
 
+## 0.5.0 공통 에이전트 온보딩 및 운영 반영
+
+2026-09-06, CLI 커밋 `8f4d256`의 [CI 34034170245](https://github.com/JoripSpace/joripspace-cli/actions/runs/34034170245)이 Windows/macOS/Linux × Node.js 18/20/22/24 **12개 조합 모두 성공**했다. 각 조합에서 99개 검사와 실제 tarball 설치 검사를 통과했다. CLI 응답·생성 AGENTS.md·공개 온보딩 문서는 같은 원본 안내를 사용한다. 사용자 문서 보존·반복 실행·인증 전 안내·프로젝트 충돌·기존 템플릿 흐름·공백/한글/셸 특수문자 경로에서 인자 배열 실행을 확인했다.
+
+`@joripspace/cli@0.5.0`을 npm 공개 `latest`로 게시했다. 실제 게시 파일은 **123,902 bytes / 29개 파일**, SHA-256 `6e13f21dff81e2f95801f40b202cd3136e7bab8d85c3ef010f2d3271e183d48c`이며 공개 레지스트리 다운로드와 로컬 검증 tarball이 바이트 단위로 일치한다. 인증 없는 외부 임시 디렉터리의 설치·npx 실행·6개 안전한 명령 비교를 통과했다. 로컬 전역 설치도 0.5.0으로 갱신했다. 실제 설치본의 인증 필요 응답에서 inline 안내와 절대경로 실행 객체를 확인하고 그 객체로 help를 실행했다. 해당 검사는 종료 코드 2를 유지하고 작업 폴더에 파일을 쓰지 않았다.
+
+상위 플랫폼 커밋 `adc8d903`을 반영했다. Control API 배포 버전은 `6d0d39ed-7726-41ba-91c9-3ddf9fa0fde7`이며 공개 `/onboarding.md`의 HTTP 200·npm 안내·실행 객체 설명을 확인했다. 정식 `npm run deploy:landing`에서 Preview `https://441bbcdd.joripspace.pages.dev`의 Functions 컴파일·업로드·핵심 JS 검사를 통과한 뒤 운영 `https://7fb2b9be.joripspace.pages.dev`의 루트·동적 프로젝트 경로 HTTP 200을 확인했다. 실제 로그인된 운영 프로젝트 시작하기 탭에서 해당 프로젝트명, npm 설치 및 start 명령, 복사 대상의 일치, 14px 글자와 줄바꿈·가로 넘침 없음을 확인했다.
+
+관련 Control API 타입 검사·온보딩 계약·기존 CLI smoke·인증/환경 파일 검사·Pages 릴리스 검사 24개·설치 스크립트 7개 시나리오·최소 글자 크기 검사를 통과했다. 전체 저장소 검사에는 기존 메일 README 마커 누락 3건과 기존 파일 크기 한도 초과 4건이 남아 있다. 해당 무관한 계약이나 한도를 완화하지 않았다. CLI의 실제 운영 API 로그인·고객 프로젝트 제작 및 배포는 수행하지 않았고, 여러 에이전트 제품 각각의 실제 대화 및 모바일 브라우저 검증을 완료한 것으로 표시하지 않는다. 플러그인이나 스킬 자동 등록 없이 inline 안내로 진행하도록 구현했다.
+
+GitHub Actions artifact·캐시는 각각 0개이고 GitHub Packages를 사용하지 않았다. 로컬 로그는 `.artifacts/onboarding-tests.log`, `.artifacts/onboarding-package.log`, `.artifacts/registry-verification.json`에 있다.
+
 ## npm 공개 및 영문 소개 반영 완료
 
 2026-09-06에 `@joripspace/cli@0.4.1`을 최초 게시한 뒤, README와 패키지 설명을 영문으로 정리한 **0.4.2**를 공개 `latest`로 게시했다. GitHub 소개와 홈페이지에도 사용자 제공 문구를 반영했다. 런타임 코드는 변경하지 않았다.
