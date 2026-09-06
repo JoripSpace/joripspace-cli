@@ -14,7 +14,7 @@ const {
 
 test('deployment archive waits through provider processing and does not cancel uploads at 45 seconds', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'joripspace-checkpoint-client-'));
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+  t.mock.timers.enable(Number(process.versions.node.split('.')[0]) < 20 ? ['setTimeout'] : { apis: ['setTimeout'] });
   let polls = 0,
     deployments = 0,
     completed = false,

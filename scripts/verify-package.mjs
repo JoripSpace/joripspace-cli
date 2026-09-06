@@ -70,12 +70,15 @@ try {
     const mode = parseInt(field(100, 8).trim(), 8);
     const type = field(156, 1);
     assert.ok(type === '0' || type === '', `Unexpected tar entry type: ${name}`);
-    assert.match(name, /^package\/(package\.json|README\.md|bin\/joripspace\.js|lib\/[^/]+\.js|vendor\/core\/[^/]+\.cjs|vendor\/templates\/index\.js|vendor\/templates\/templates\/(basic-worker|r2-file-api)\/(manifest\.json|files\/worker\.js))$/);
+    assert.match(name, /^package\/(package\.json|README\.md|LICENSE|THIRD_PARTY_NOTICES\.md|bin\/joripspace\.js|lib\/[^/]+\.js|vendor\/core\/[^/]+\.cjs|vendor\/templates\/index\.js|vendor\/templates\/templates\/(basic-worker|r2-file-api)\/(manifest\.json|files\/worker\.js))$/);
     const content = tar.subarray(offset + 512, offset + 512 + size);
     const text = content.toString('utf8');
     assert.ok(!text.includes(root) && !text.includes(root.replaceAll('\\', '/')), `Local source path in ${name}`);
     assert.doesNotMatch(text, /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:ghp_|github_pat_|npm_)[A-Za-z0-9_]{30,}/);
     if (name === 'package/package.json') packedPackage = JSON.parse(text);
+    if (name === 'package/LICENSE' || name === 'package/THIRD_PARTY_NOTICES.md') {
+      assert.equal(text, readFileSync(join(root, name.slice(8)), 'utf8'));
+    }
     if (name === 'package/bin/joripspace.js') {
       // Windows filesystems do not store POSIX execute bits; npm sets bin permissions on installation.
       report.packed_entry_mode = mode.toString(8);
@@ -86,6 +89,8 @@ try {
     offset += 512 + Math.ceil(size / 512) * 512;
   }
   assert.ok(packedPackage);
+  assert.equal(packedPackage.license, 'MIT');
+  for (const required of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) assert.ok(report.files.some(file => file.file === required));
   assert.deepEqual(report.files.map(file => file.file).sort(), metadata.files.map(file => file.path).sort());
   for (const hook of ['preinstall', 'install', 'postinstall', 'prepare']) assert.equal(packedPackage.scripts[hook], undefined);
   for (const spec of Object.values(packedPackage.dependencies)) assert.doesNotMatch(spec, /file:|link:|workspace:/);

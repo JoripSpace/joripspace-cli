@@ -1,6 +1,7 @@
 {
   "name": "@joripspace/cli",
   "version": "0.4.1",
+  "license": "MIT",
   "description": "JoripSpace Control API command-line client for Node.js",
   "type": "commonjs",
   "bin": {
@@ -27,7 +28,9 @@
     "vendor/core/*.cjs",
     "vendor/templates/index.js",
     "vendor/templates/templates/**",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "check": "node scripts/check-package.mjs",

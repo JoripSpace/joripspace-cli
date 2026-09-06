@@ -7,6 +7,16 @@ import { spawnSync } from 'node:child_process';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@joripspace/cli');
+assert.equal(pkg.license, 'MIT');
+assert.match(readFileSync(join(root, 'LICENSE'), 'utf8'), /Copyright \(c\) 2026 Cosmosfarm Software/);
+assert.ok(readFileSync(join(root, 'THIRD_PARTY_NOTICES.md'), 'utf8').includes('BSD-3-Clause'));
+const notices = readFileSync(join(root, 'THIRD_PARTY_NOTICES.md'), 'utf8').replace(/\r\n/g, '\n');
+for (const [name, licenseFile] of [['fflate', 'LICENSE'], ['jsonc-parser', 'LICENSE.md'], ['smol-toml', 'LICENSE']]) {
+  const dependency = JSON.parse(readFileSync(join(root, 'node_modules', name, 'package.json'), 'utf8'));
+  const license = readFileSync(join(root, 'node_modules', name, licenseFile), 'utf8').replace(/\r\n/g, '\n').trim();
+  assert.ok(notices.includes(`${name} ${dependency.version}`), `Update the notices for ${name}`);
+  assert.ok(notices.includes(license), `Preserve the complete license for ${name}`);
+}
 assert.deepEqual(pkg.bin, { joripspace: 'bin/joripspace.js' });
 assert.equal(pkg.publishConfig.access, 'public');
 assert.equal(pkg.private, undefined);

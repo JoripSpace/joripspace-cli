@@ -65,6 +65,10 @@ npm exec --yes --package="/absolute/path/joripspace-cli-0.4.1.tgz" -- joripspace
 
 Windows에서는 해당 위치를 `C:/.../joripspace-cli-0.4.1.tgz`로 바꿉니다. 실제 결과와 OS별 미검증 범위는 [검증 기록](docs/verification.md), 원본·변경 범위와 최초 공개 조건은 [패키징 기록](docs/packaging.md)에 정리합니다.
 
-라이선스는 원본과 대상 저장소에서 확인되지 않아 임의로 지정하지 않았습니다.
+## 라이선스
+
+JoripSpace CLI는 [MIT 라이선스](LICENSE)로 배포합니다. 조립스페이스 클라우드 서비스 이용에는 별도 서비스 약관과 요금제가 적용됩니다. 플랫폼 서버·관리자·인프라 코드는 이 CLI 공개 대상에 포함되지 않습니다.
+
+외부 의존성에는 각각의 원래 라이선스가 적용됩니다. 기존 저작권과 라이선스 전문은 [제3자 고지](THIRD_PARTY_NOTICES.md)에 보존했으며, CLI의 MIT 적용이 외부 코드의 라이선스를 변경하지 않습니다.
 
 설정 참고: [npm package.json](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/), [npm exec](https://docs.npmjs.com/cli/v11/commands/npm-exec/), [Node.js 지원 버전](https://nodejs.org/en/about/previous-releases).

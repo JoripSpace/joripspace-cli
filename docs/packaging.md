@@ -23,9 +23,17 @@ CLI `bin`, `lib`, 기존 테스트 10개 파일을 복사했다. 기존 JavaScri
 
 ## 최초 공개 전에 할 일
 
-1. 원본에 없는 배포 라이선스를 소유자가 결정한다. 현재 `license`와 LICENSE 파일은 임의로 추가하지 않았다.
+1. 라이선스는 후속 사용자 지시로 MIT로 확정했다. 표준 전문과 `Copyright (c) 2026 Cosmosfarm Software`를 적용했으며 제3자 고지를 별도로 보존한다.
 2. npm `@joripspace` 조직 및 `@joripspace/cli` 게시 권한, 0.4.1 버전 사용 가능 여부를 확인한다. 로그인·게시·버전 선점은 이번에 하지 않았다.
 3. 변경을 검토하고 별도 승인된 절차로 GitHub에 올린 뒤 OS/Node CI 행렬을 실행한다. workflow는 검증 전용이며 publish, release, artifact upload, npm 캐시 저장 작업이 없다.
 4. `npm ci --ignore-scripts`, `npm run check`, `npm test`, `npm run test:package`로 최종 tarball을 검토한 후 별도 승인된 담당자가 공개한다.
 
 최초 준비 단계에서는 npm publish, GitHub push, release 생성, 운영 플랫폼 배포를 실행하지 않았다. 이후 사용자가 npm 게시와 필요한 GitHub 반영을 승인했다. GitHub 유료 저장공간을 사용하지 않도록 Actions artifact 업로드·의존성 캐시·GitHub Packages 게시를 사용하지 않는다. 테스트 tarball은 러너의 임시 디스크에서만 사용한다.
+
+## 라이선스 확인
+
+배포하는 `bin`·`lib`·`vendor` 소스와 의존성·원본 출처 목록을 확인했다. 해당 코드에서 기존 제3자 저작권 고지나 Vercel/Apache 코드 표식을 발견하지 않았으며, Vercel CLI를 의존하거나 복사해 넣지 않았다. 표식 검사만으로 모든 코드의 법적 출처를 증명하는 것은 아니다. 원본 CLI와 필요한 공통 모듈은 기존 프로젝트에서 가져온 파일별 출처·해시를 유지한다.
+
+외부 의존성은 fflate 0.8.3(MIT, Arjun Barrett), jsonc-parser 3.3.1(MIT, Microsoft), smol-toml 1.8.0(BSD-3-Clause, Squirrel Chat et al.)이다. 설치된 패키지의 원래 연도·저작권자·라이선스 전문을 `THIRD_PARTY_NOTICES.md`에 그대로 보존했다. 의존성 소스는 번들링하지 않으며 npm이 별도 설치한다. `prepack`은 의존성 버전 및 원문 고지 일치 여부를 검사한다.
+
+루트 LICENSE는 [표준 MIT 본문](https://opensource.org/license/mit)을 사용하고 별도 제한을 덧붙이지 않는다. 클라우드 서비스의 약관·요금제 적용은 README에 별도로 안내하며 플랫폼 서비스의 약관이나 가격을 수정하지 않는다.

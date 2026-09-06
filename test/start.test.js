@@ -13,7 +13,7 @@ const {
 } = require('../lib/start');
 
 function fixture() {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'joripspace-start-'));
+  const root = fs.realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'joripspace-start-')));
   const home = path.join(root, 'home');
   const workspace = path.join(root, 'workspace');
   mkdirSync(home, { recursive: true });

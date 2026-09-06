@@ -170,8 +170,8 @@
       "source": "packages/cli/test/checkpoint-client.test.js",
       "destination": "test/checkpoint-client.test.js",
       "original_sha256_lf": "78b802e602255874028253f73941505e9afcc444fe8ed2943ef5200ceac1c0b9",
-      "copied_sha256_lf": "78b802e602255874028253f73941505e9afcc444fe8ed2943ef5200ceac1c0b9",
-      "modified": false
+      "copied_sha256_lf": "341d8e6080b7b9c776378a1e38a50120a6f173427651b2694611be531d4ab804",
+      "modified": true
     },
     {
       "source": "packages/cli/test/cli-commands.test.js",
@@ -226,7 +226,7 @@
       "source": "packages/cli/test/start.test.js",
       "destination": "test/start.test.js",
       "original_sha256_lf": "9e63561450d610e65fa6c6eb8a2bab884042e178b57e793b04bb5764f1f1eb30",
-      "copied_sha256_lf": "5aca357072f490077ebe39483dc81bdc85177d23fb216e97c90b3fc9e65bfad5",
+      "copied_sha256_lf": "b889e4e7bb76168c79e30864265a1f80671ecb439e3b03b8b8d422ece7f724f7",
       "modified": true
     },
     {
