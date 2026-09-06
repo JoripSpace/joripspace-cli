@@ -170,7 +170,7 @@
       "source": "packages/cli/test/checkpoint-client.test.js",
       "destination": "test/checkpoint-client.test.js",
       "original_sha256_lf": "78b802e602255874028253f73941505e9afcc444fe8ed2943ef5200ceac1c0b9",
-      "copied_sha256_lf": "341d8e6080b7b9c776378a1e38a50120a6f173427651b2694611be531d4ab804",
+      "copied_sha256_lf": "e33fca7c67be3c7124a85e3eaa431a56056bc08d2b8e12b4427e36f4d768a9b9",
       "modified": true
     },
     {
