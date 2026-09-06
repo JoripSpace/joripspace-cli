@@ -1,6 +1,14 @@
 # JoripSpace CLI
 
-기존 CLI 0.4.1을 재사용한 Node.js 공통 패키지입니다. npm 레지스트리에 등록된 버전은 다음 명령으로 실행합니다.
+**JoripSpace — Build and deploy web apps with AI agents. Powered by Cosmosfarm.**
+
+The official Node.js command-line client for JoripSpace. Connect your projects and manage deployments, databases, storage, and realtime services from your terminal.
+
+[Website](https://joripspace.com) · [Support](mailto:support@cosmosfarm.com) · [GitHub](https://github.com/JoripSpace/joripspace-cli)
+
+## Quick start
+
+Run with npx. No global installation is required:
 
 ```sh
 npx -y @joripspace/cli@latest --help
@@ -8,45 +16,49 @@ npx -y @joripspace/cli@latest templates --json
 npx -y @joripspace/cli@latest realtime-v2 docs --json
 ```
 
-Windows/macOS/Linux에서 Node.js와 npm이 필요합니다. 기존 최소 조건인 Node.js 18 이상을 유지하며, 신규 설치에는 지원 중인 LTS 버전을 권장합니다. TypeScript 컴파일러나 네이티브 빌드 도구는 필요하지 않습니다. OS별 실행 파일을 내려받는 래퍼가 아니며, 설치 시 빌드·로그인·브라우저 실행·설정 변경을 하지 않습니다.
+Requires **Node.js 18 or later and npm** on Windows, macOS, or Linux. No TypeScript compiler or native build tools are needed. The CLI runs directly in Node.js; it does not download an OS-specific executable. Installation does not build source code, log you in, open a browser, or change project settings.
 
-## 연결과 사용
+## Connect a project
 
-사용자 프로젝트 폴더에서 실행하세요. 공백·한글이 있는 경로는 따옴표로 감쌉니다.
+Run commands from your project directory. Quote paths containing spaces or non-ASCII characters.
 
 ```sh
 npx -y @joripspace/cli@latest login
-npx -y @joripspace/cli@latest login --code "복사한_연결_코드" --cwd "내 프로젝트"
-npx -y @joripspace/cli@latest start my-app --cwd "내 프로젝트" --json
-npx -y @joripspace/cli@latest get --cwd "내 프로젝트" --json
+npx -y @joripspace/cli@latest login --code "YOUR_CONNECTION_CODE" --cwd "my project"
+npx -y @joripspace/cli@latest start my-app --cwd "my project" --json
+npx -y @joripspace/cli@latest get --cwd "my project" --json
 ```
 
-`login`이 안내하는 https://joripspace.com/connect/ 에서 사용자가 연결을 승인하고 5분 일회용 코드를 복사합니다. `login --code`는 기존 방식대로 지정 프로젝트의 Git 제외 파일 `.env.joripspace`에 연결 토큰과 API 주소를 저장합니다. 일반 `.env`는 인증에 사용하지 않습니다. 같은 프로젝트에서는 다음 npx 실행도 기존 인증을 재사용합니다. 설정·인증·프로젝트 상태를 npm 캐시나 패키지 내부에 저장하지 않습니다.
+Follow the link from `login` to [JoripSpace Connect](https://joripspace.com/connect/), approve the connection, and copy the one-time code, which expires after five minutes. Replace `my-app` with your existing project slug.
 
-`--cwd`가 없으면 실행한 현재 작업 폴더를 기준으로 상위 폴더의 프로젝트 연결을 찾습니다. `.joripspace/project`의 slug, `--project` 별칭, 환경변수 및 이전 인증 형식의 검증·이전 규칙을 유지합니다. 기본 API는 https://api.joripspace.com 이며 기존 `--api-url`과 `JORIPSPACE_API_URL`을 사용할 수 있습니다.
+`login --code` stores the connection token and API URL in the project's Git-ignored `.env.joripspace` file. A regular `.env` file is not used for authentication. Subsequent npx runs reuse the same project credentials, so you do not need to log in each time. Credentials and project state are not stored inside the npm package or cache.
 
-`start`는 기존 프로젝트를 연결·재개하는 명령입니다. 프로젝트를 새로 만들지 않으며 기존 동작에 따라 프로젝트 안내 파일을 관리하고 필요한 소스를 동기화합니다. 이번 npm 패키징에서 새로운 에이전트 탐지, MCP 등록, Plugin, Skill, Hook을 추가하지 않았습니다. 기존 구현과 호환 모듈은 보존했습니다.
+Without `--cwd`, the CLI uses your current working directory and searches parent directories for the project connection. Existing `.joripspace/project` markers, the `--project` alias, environment variables, and legacy credential validation and migration remain supported. The default API is `https://api.joripspace.com`; use the existing `--api-url` option or `JORIPSPACE_API_URL` environment variable to override it.
 
-## 선택적 전역 설치
+`start` connects to or resumes an existing project; it does not create a new project. It maintains project guidance files and synchronizes the required source files using the existing CLI behavior. This npm package preserves the original commands and compatibility modules without adding agent detection, MCP registration, plugins, skills, or hooks.
 
-다음 방식도 사용할 수 있습니다. 기본 안내는 npx이며 전역 설치나 영구 PATH 변경은 필수가 아닙니다.
+## Optional global installation
 
 ```sh
 npm install -g @joripspace/cli
 joripspace --help
 ```
 
-## 기존 명령과 의존성
+You can continue using npx instead. Global installation and permanent PATH changes are not required.
 
-정확한 명령·옵션은 `--help`, `deploy --help`, `deploy-template --help`, `install-template --help`로 확인합니다. 인증·프로젝트 조회·배포·템플릿·저장본·DB·스토리지·실시간 v2·Secret·Cron·도메인·메일·사용량·이벤트 등의 기존 구현을 사용합니다. 기존 웹 전용 작업은 동일하게 거부합니다. `--json`은 성공 결과를 stdout, 오류를 stderr로 출력하며 기존 종료 코드 0/1/2를 보존합니다.
+## Commands and compatibility
 
-CLI 설치와 일반 API 명령에는 Node.js/npm만 필요합니다. 기존 GitHub 소스 연결·Git 이력 동기화 기능에는 Git이 필요합니다. 대화형 `start`의 브라우저 열기는 Windows `cmd.exe`, macOS `open`, Linux `xdg-open`을 사용하며 브라우저를 열 수 없어도 출력된 URL로 직접 연결할 수 있습니다. 템플릿의 고객 Worker 예제는 기존 공개 템플릿이며 플랫폼 서버 구현은 포함하지 않습니다.
+Use `--help`, `deploy --help`, `deploy-template --help`, or `install-template --help` for the supported commands and options. Existing functionality includes authentication, project inspection, deployment, templates, checkpoints, databases, storage, realtime v2, secrets, cron jobs, domains, mail, usage, and events. Operations restricted to the web interface remain restricted.
 
-`start` 응답의 `executable`은 JS 진입점의 절대 경로입니다. 직접 실행할 때는 `node "진입점 경로" ...`를 사용하거나 위 npx 명령을 사용하세요. 응답의 `login_command`, `resume_command`, `install_command`에는 Node 실행 경로를 포함했습니다. Windows PowerShell에서 따옴표로 감싼 실행 경로를 직접 입력할 때는 앞에 호출 연산자 `&`가 필요합니다. JSON의 구조나 키는 변경하지 않았습니다.
+The CLI preserves existing output formats and exit codes `0`, `1`, and `2`. With `--json`, successful results go to stdout and errors go to stderr. CLI messages retain their existing language; this release updates the package documentation and description.
 
-## 개발 및 공개 전 패키지 검증
+Installation and ordinary API commands require only Node.js and npm. Existing GitHub source connection and Git history synchronization features also require Git. Interactive `start` opens the browser using Windows `cmd.exe`, macOS `open`, or Linux `xdg-open`. If opening a browser fails, you can open the printed URL yourself.
 
-상위 플랫폼 저장소 없이 단독으로 동작합니다. 기존 JavaScript를 재사용하므로 컴파일 단계가 없습니다. `prepack`은 메타데이터·JS 구문·shebang·실행 권한을 확인하며 설치 시 실행되는 수명주기 스크립트는 없습니다.
+The `executable` field in a `start` response is the absolute path to the JavaScript entrypoint. Use `node "path/to/entrypoint" ...` or npx to run it. The `login_command`, `resume_command`, and `install_command` fields include the Node.js executable. In PowerShell, prefix a quoted executable path with the call operator `&`. JSON keys and structure remain unchanged.
+
+## Development and package verification
+
+This repository works independently of the platform repository. It reuses the existing JavaScript implementation and requires no compilation. `prepack` checks package metadata, JavaScript syntax, the Node shebang, and executable permissions. There are no installation lifecycle hooks.
 
 ```sh
 npm ci --ignore-scripts
@@ -55,20 +67,30 @@ npm test
 npm run test:package
 ```
 
-`test:package`는 실제 `npm pack` 결과를 `.artifacts/`에 만들고 파일 내용·해시·실행 권한을 확인합니다. 저장소 밖의 공백·한글 임시 경로에서 설치, npx, npm exec, 인자·출력·종료 코드 비교, 로컬 모의 API 인증 재사용, 작업 폴더 유지, 취소를 검사합니다. 운영 API나 실제 사용자 설정은 수정하지 않습니다. 원본과 비교하려면 테스트 프로세스에 `JORIPSPACE_BASELINE_CLI`로 원본 `bin/joripspace.js` 경로를 전달합니다. 없으면 독립 저장소 소스를 기준으로 비교합니다.
+`test:package` creates a real tarball in `.artifacts/` and checks its files, hashes, licenses, and permissions. It verifies installation, npx, npm exec, arguments, output, exit codes, working directories, cancellation, and credential reuse through a local mock API. Tests run in temporary directories outside the repository, including paths with spaces and Korean characters. They do not modify production projects or actual user credentials.
 
-공개 전에는 생성된 tarball의 **절대 경로**로 실행할 수 있습니다.
+Set `JORIPSPACE_BASELINE_CLI` to the original `bin/joripspace.js` path to compare against the original CLI; otherwise, comparisons use this repository's source. GitHub CI covers Windows, macOS, and Linux with Node.js 18, 20, 22, and 24. It does not upload artifacts, cache dependencies, or publish to GitHub Packages.
+
+To try a tarball before publishing, use its absolute path:
 
 ```sh
-npm exec --yes --package="/absolute/path/joripspace-cli-0.4.1.tgz" -- joripspace --help
+npm exec --yes --package="/absolute/path/joripspace-cli-0.4.2.tgz" -- joripspace --help
 ```
 
-Windows에서는 해당 위치를 `C:/.../joripspace-cli-0.4.1.tgz`로 바꿉니다. 실제 결과와 OS별 미검증 범위는 [검증 기록](docs/verification.md), 원본·변경 범위와 최초 공개 조건은 [패키징 기록](docs/packaging.md)에 정리합니다.
+On Windows, use a path such as `C:/path/to/joripspace-cli-0.4.2.tgz`. Detailed engineering records are available in [verification](docs/verification.md) and [packaging](docs/packaging.md) (Korean).
 
-## 라이선스
+## License
 
-JoripSpace CLI는 [MIT 라이선스](LICENSE)로 배포합니다. 조립스페이스 클라우드 서비스 이용에는 별도 서비스 약관과 요금제가 적용됩니다. 플랫폼 서버·관리자·인프라 코드는 이 CLI 공개 대상에 포함되지 않습니다.
+JoripSpace CLI is available under the [MIT License](LICENSE).
 
-외부 의존성에는 각각의 원래 라이선스가 적용됩니다. 기존 저작권과 라이선스 전문은 [제3자 고지](THIRD_PARTY_NOTICES.md)에 보존했으며, CLI의 MIT 적용이 외부 코드의 라이선스를 변경하지 않습니다.
+Copyright (c) 2026 Cosmosfarm Software
 
-설정 참고: [npm package.json](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/), [npm exec](https://docs.npmjs.com/cli/v11/commands/npm-exec/), [Node.js 지원 버전](https://nodejs.org/en/about/previous-releases).
+Use of the JoripSpace cloud service is subject to separate service terms and pricing plans. Platform server, administration, and infrastructure code are not included in this CLI distribution. Included Worker examples are public customer templates.
+
+Third-party dependencies retain their original licenses and copyrights. See [Third-party notices](THIRD_PARTY_NOTICES.md) for the preserved license texts.
+
+## Support
+
+- Website: [joripspace.com](https://joripspace.com)
+- Email: [support@cosmosfarm.com](mailto:support@cosmosfarm.com)
+- Bug reports: [GitHub Issues](https://github.com/JoripSpace/joripspace-cli/issues)
