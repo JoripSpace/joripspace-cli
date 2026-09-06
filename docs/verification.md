@@ -1,5 +1,15 @@
 # 실행 검증 기록
 
+## npm 공개 및 영문 소개 반영 완료
+
+2026-09-06에 `@joripspace/cli@0.4.1`을 최초 게시한 뒤, README와 패키지 설명을 영문으로 정리한 **0.4.2**를 공개 `latest`로 게시했다. GitHub 소개와 홈페이지에도 사용자 제공 문구를 반영했다. 런타임 코드는 변경하지 않았다.
+
+0.4.2에서 로컬 기존 검사 **98개**와 실제 tarball 패키지 검사를 다시 통과했다. 공개 레지스트리에서 인증 없이 별도의 공백·한글 임시 경로에 설치하고, 6개 안전한 명령의 stdout·stderr·종료 코드를 소스와 비교했다. `npx -y @joripspace/cli@latest --version`은 `0.4.2`를 반환했다. 다운로드한 tarball은 검증한 로컬 파일과 바이트 단위로 같았고, SHA-256은 `e3b9f97103cdb05e2976d6c115a9b1456ca4e6651c81ec8be63bd92b349fa3ee`이다. 영문 README·지원 이메일·MIT·기존 제3자 고지 포함을 확인했다.
+
+이 PC의 사용자 npm 전역 경로에도 실제 레지스트리에서 설치했으며 `joripspace --version`이 `0.4.2`를 반환했다. 검증 환경은 Windows x64 / Node.js 24.18.0 / npm 11.16.0이다. 0.4.2의 실제 레지스트리 설치는 Windows에서 확인했으며, macOS/Linux의 실행 근거는 아래 동일 런타임 코드의 12개 CI 조합이다. npm 게시 인증을 CLI의 운영 API 연결 검증으로 표시하지 않는다.
+
+결과는 `.artifacts/english-tests.log`, `.artifacts/english-package-test.log`, `.artifacts/registry-verification.json`에 기록했다. GitHub Actions artifact·캐시는 각각 0개이며 GitHub Packages를 사용하지 않았다.
+
 ## 후속 MIT 적용과 OS별 실제 검증
 
 사용자가 npm 게시·필요한 GitHub 반영·MIT 적용을 승인했다. 최종 코드 `fbbdb03`의 [GitHub 검사 34029633896](https://github.com/JoripSpace/joripspace-cli/actions/runs/34029633896)은 **Windows/macOS/Linux × Node.js 18/20/22/24, 12개 조합 모두 성공**했다. 각 조합에서 기존 검사 98개와 실제 npm pack·격리 설치·npx·전역 prefix·인증 모의 API·취소 검사를 완료했다. 실제 운영 API 인증 성공을 의미하지 않는다.
@@ -8,7 +18,7 @@
 
 MIT 적용본의 로컬 tarball은 **120,310 bytes, 28개 파일**, SHA-256 `244347fdf3cb45a63e7b326a551d40b92071dc020e85e1e66f9dde58e1fca90f`이다. `LICENSE`의 표준 MIT 전문·Cosmosfarm Software 표기, `license: MIT`, `THIRD_PARTY_NOTICES.md`의 외부 의존성 원래 고지 포함을 실제 tar 원문과 대조했다. 고지 검사는 설치된 각 의존성의 버전과 라이선스 전문까지 비교한다. 이 항목이 아래 최초 준비 단계의 tarball 크기·해시를 대체한다.
 
-결과는 `.artifacts/license-final-tests.log`, `.artifacts/license-package-test.log`, `.artifacts/package-verification.json`과 위 CI 로그에 있다. GitHub Actions artifact와 캐시 목록을 조회해 각각 **0개**임을 확인했다. GitHub Packages·artifact 업로드·의존성 캐시는 사용하지 않는다. npm 계정의 보안 키 인증이 완료되지 않아 **아직 npm에 게시하지 않았으며, 레지스트리에서의 설치 검증은 대기 중**이다.
+결과는 `.artifacts/license-final-tests.log`, `.artifacts/license-package-test.log`과 위 CI 로그에 있다. GitHub Actions artifact와 캐시 목록을 조회해 각각 **0개**임을 확인했다. GitHub Packages·artifact 업로드·의존성 캐시는 사용하지 않는다. 당시 대기 중이던 npm 게시 인증과 레지스트리 설치 검증은 위 후속 단계에서 완료했다.
 
 ## 최초 npm 준비 단계의 로컬 기록
 
