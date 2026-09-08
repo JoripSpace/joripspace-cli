@@ -1,5 +1,5 @@
 const { JORIPSPACE_CLI_GUIDE, JORIPSPACE_NPM_ONBOARDING_DOCUMENT } = require('./cli-onboarding.cjs');
-const { projectGithubActionsTemplateFile } = require('./github-workflow.cjs');
+const { buildGithubWorkflow, projectGithubActionsTemplateFile } = require('./github-workflow.cjs');
 const { templateGithubActionsPublishFile } = require('./template-publish-workflow.cjs');
 
 const JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES = [
@@ -2419,6 +2419,7 @@ module.exports = {
   projectDeployCheckpointHelperFile,
   projectInstallTemplateHelperFile,
   projectGithubActionsTemplateFile,
+  buildGithubWorkflow,
   templateGithubActionsPublishFile,
   onboardingGitignoreContent,
   projectAgentSessionFile,

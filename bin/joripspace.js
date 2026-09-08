@@ -15,6 +15,7 @@ const {
 const { createTemplateCommands } = require('../lib/template-commands');
 const { createCheckpointCommands } = require('../lib/checkpoint-commands');
 const { createRealtimeV2Commands } = require('../lib/realtime-v2-commands');
+const { createGithubCommands } = require('../lib/github-commands');
 const {
   assertDeployableProjectPath,
   assertDeployableSourceFilePath,
@@ -89,6 +90,15 @@ const startProjectCommand = createStartProjectCommand(
   persistStartConnection,
   connectForStart
 );
+const githubCommand = createGithubCommands({
+  apiRequest,
+  output,
+  projectAuth,
+  projectWorkspaceDir,
+  requireProjectId,
+  stringFlag,
+  writeTextAtomically,
+});
 
 const DEFAULT_API_URL = 'https://api.joripspace.com';
 const GENERAL_REQUEST_TIMEOUT_MS = 25_000;
@@ -228,6 +238,9 @@ async function main() {
       return;
     case 'realtime-v2':
       await createRealtimeV2Commands({apiRequest,output,projectAuth,requireProjectId,stringFlag})(rest,flags);
+      return;
+    case 'github':
+      await githubCommand(rest, flags);
       return;
     case 'rollback':
       await rollbackDeployment(flags);

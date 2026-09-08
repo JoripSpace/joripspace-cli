@@ -1,4 +1,13 @@
-function buildGithubWorkflow({ projectId, branch, buildCommand, artifactPath, entrypoint }) {
+function buildGithubWorkflow({
+  projectId,
+  branch,
+  triggerType = 'branch',
+  triggerRef = branch,
+  connectionId = 'legacy',
+  buildCommand,
+  artifactPath,
+  entrypoint,
+}) {
   const commands = String(buildCommand)
     .split('\n')
     .map((line) => `          ${line}`)
@@ -7,21 +16,22 @@ function buildGithubWorkflow({ projectId, branch, buildCommand, artifactPath, en
     .split('\n')
     .map((line) => `          ${line}`)
     .join('\n');
+  const trigger =
+    triggerType === 'release'
+      ? `  release:\n    types:\n      - published`
+      : `  push:\n    branches:\n      - ${JSON.stringify(String(triggerRef || branch))}\n  workflow_dispatch:`;
   return `# joripspace-workflow-version: 8
-name: JoripSpace Deploy
+name: JoripSpace Deploy ${JSON.stringify(`(${connectionId})`)}
 
 on:
-  push:
-    branches:
-      - ${JSON.stringify(String(branch))}
-  workflow_dispatch:
+${trigger}
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: ${JSON.stringify(`joripspace-${String(projectId)}`)}
+  group: ${JSON.stringify(`joripspace-${String(projectId)}-${String(connectionId)}`)}
   cancel-in-progress: true
 
 jobs:
@@ -38,6 +48,7 @@ ${commands}
         shell: bash
         env:
           JORIPSPACE_PROJECT_ID: ${JSON.stringify(String(projectId))}
+          JORIPSPACE_CONNECTION_ID: ${JSON.stringify(String(connectionId))}
           JORIPSPACE_ARTIFACT_PATH: ${JSON.stringify(String(artifactPath))}
           JORIPSPACE_ENTRYPOINT: ${JSON.stringify(String(entrypoint))}
           JORIPSPACE_API_URL: "https://api.joripspace.com"
@@ -81,6 +92,7 @@ async function inlineDeployMain() {
   const { open } = await import('node:fs/promises');
   const audience = 'https://api.joripspace.com/v1/external-builds/github';
   const projectId = requiredEnv('JORIPSPACE_PROJECT_ID');
+  const connectionId = String(process.env.JORIPSPACE_CONNECTION_ID || '').trim();
   const archivePath = requiredEnv('JORIPSPACE_ARCHIVE_PATH');
   const apiUrl = requiredEnv('JORIPSPACE_API_URL').replace(/\/+$/, '');
   const oidcToken = await requestOidcToken();
@@ -156,6 +168,7 @@ async function inlineDeployMain() {
   async function api(path, options) {
     const url = path.startsWith('http') ? path : `${apiUrl}${path}`;
     const headers = new Headers({ Authorization: `Bearer ${options.token}`, Accept: 'application/json' });
+    if (connectionId) headers.set('X-JoripSpace-Connection-ID', connectionId);
     let body = options.body;
     if (options.json !== undefined) {
       headers.set('Content-Type', 'application/json');
