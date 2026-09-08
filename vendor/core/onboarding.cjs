@@ -120,6 +120,7 @@ const BEGINNER_ONBOARDING_LINES = [
   '- If the user says they do not know, give 2-3 simple examples, recommend one default, and continue.',
   '- Explain only the next useful action. Avoid long technical explanations unless the user asks.',
   '- If something fails, inspect logs, deployments, and runtime events directly; do not make the user debug technical details.',
+  '- When a JoripSpace platform command fails unexpectedly, or its result differs from the documented behavior after one safe verification, submit one incident with the installed CLI `report` command. Include a short summary, expected and actual behavior, available error code, and non-secret diagnostic details. Do not include credentials, personal data, or duplicate reports, and continue helping the user when a safe alternative remains.',
 ];
 
 const USER_CHOICE_PRESENTATION_RULE_LINES = [

@@ -180,6 +180,9 @@ async function main() {
     case 'get':
       await getProject(flags);
       return;
+    case 'report':
+      await reportAgentIssue(flags);
+      return;
     case 'db':
       await dbCommand(rest, flags);
       return;
@@ -428,6 +431,34 @@ async function getProject(flags) {
     console.log(`Status: ${value.status}`);
     console.log(`URL: ${value.default_url}`);
     console.log(`Last deployed: ${value.last_deployed_at ?? 'never'}`);
+  });
+}
+
+async function reportAgentIssue(flags) {
+  const project = requireProjectId(flags);
+  const category = (stringFlag(flags, 'category') || 'problem').trim().toLowerCase();
+  if (category !== 'problem' && category !== 'bug') {
+    throw new Error('report --category must be problem or bug');
+  }
+  const summary = (stringFlag(flags, 'summary') || stringFlag(flags, 'message')).trim();
+  if (!summary) throw new Error('report requires --summary');
+  const body = await apiRequest(flags, `/v1/projects/${encodeURIComponent(project)}/agent-reports`, {
+    method: 'POST',
+    ...projectAuth(flags),
+    body: {
+      category,
+      summary,
+      details: stringFlag(flags, 'details') || null,
+      expected: stringFlag(flags, 'expected') || null,
+      actual: stringFlag(flags, 'actual') || null,
+      error_code: stringFlag(flags, 'error-code') || null,
+      cli_version: require('../package.json').version,
+      runtime_version: process.version,
+      platform_name: process.platform,
+    },
+  });
+  output(flags, body, (value) => {
+    console.log(`Agent report submitted: ${value.report_id}`);
   });
 }
 

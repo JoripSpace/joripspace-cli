@@ -63,6 +63,38 @@ function writeConnection(workspace, apiUrl) {
   );
 }
 
+test('agent report submits platform diagnostics through the CLI-only API route', async () => {
+  const { root, workspace } = fixture();
+  let received;
+  const api = await apiServer((request, body) => {
+    assert.equal(request.method, 'POST');
+    assert.equal(request.url, '/v1/projects/demo/agent-reports');
+    assert.equal(request.headers.authorization, 'Bearer project-token');
+    assert.equal(request.headers['x-joripspace-session-context'], 'cli');
+    received = body;
+    return { status: 201, body: { ok: true, report_id: 'air_test', status: 'open' } };
+  });
+  try {
+    writeConnection(workspace, api.url);
+    const result = await runCli([
+      'report', '--cwd', workspace, '--category', 'bug', '--summary', '빈 저장소 연결 실패',
+      '--details', 'start가 실패했습니다.', '--expected', '저장소 초기화', '--actual', 'clone 오류',
+      '--error-code', 'github_repository_sync_conflict', '--json',
+    ]);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).report_id, 'air_test');
+    assert.equal(received.category, 'bug');
+    assert.equal(received.summary, '빈 저장소 연결 실패');
+    assert.equal(received.error_code, 'github_repository_sync_conflict');
+    assert.equal(received.runtime_version, process.version);
+    assert.equal(received.platform_name, process.platform);
+    assert.doesNotMatch(result.stdout + result.stderr, /project-token/);
+  } finally {
+    await api.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('realtime v2 management uses the project credential and encoded key cursor without exposing it', async () => {
   const { root, workspace } = fixture();
   const calls = [];
