@@ -916,6 +916,36 @@ test('GitHub source sync refuses a non-empty non-repository without overwriting 
   }
 });
 
+test('GitHub source sync initializes an empty remote route without changing application files', () => {
+  const { root, workspace } = fixture();
+  try {
+    writeFileSync(path.join(workspace, 'worker.js'), 'export default {}\n');
+    const result = syncConnectedGithubRepository(
+      workspace,
+      {
+        mode: 'github_actions',
+        repository: 'example/project',
+        branch: 'main',
+        source_status: 'empty',
+      },
+      'git'
+    );
+    assert.equal(result.status, 'initialized_empty_remote');
+    assert.equal(readFileSync(path.join(workspace, 'worker.js'), 'utf8'), 'export default {}\n');
+    const childProcess = require('node:child_process');
+    assert.equal(
+      childProcess.spawnSync('git', ['-C', workspace, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).stdout.trim(),
+      'https://github.com/example/project.git'
+    );
+    assert.equal(
+      childProcess.spawnSync('git', ['-C', workspace, 'symbolic-ref', '--short', 'HEAD'], { encoding: 'utf8' }).stdout.trim(),
+      'main'
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('re-running start preserves a dirty matching GitHub worktree and returns the CLI continuation', async () => {
   const { root, workspace } = fixture();
   const childProcess = require('node:child_process');
