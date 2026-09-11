@@ -14,25 +14,7 @@ const {
 
 test('deployment archive waits through provider processing and does not cancel uploads at 45 seconds', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'joripspace-checkpoint-client-'));
-  // Node 18's experimental MockTimers loses pending timers in this clear/tick
-  // sequence. Use the same deterministic clock on every supported Node version.
-  let clock = 0;
-  const timers = new Map();
-  t.mock.method(global, 'setTimeout', (callback, delay) => {
-    const handle = {};
-    timers.set(handle, { callback, at: clock + Number(delay) });
-    return handle;
-  });
-  t.mock.method(global, 'clearTimeout', (handle) => timers.delete(handle));
-  const advance = (milliseconds) => {
-    clock += milliseconds;
-    for (const [handle, timer] of [...timers].sort((a, b) => a[1].at - b[1].at)) {
-      if (timers.has(handle) && timer.at <= clock) {
-        timers.delete(handle);
-        timer.callback();
-      }
-    }
-  };
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   let polls = 0,
     deployments = 0,
     completed = false,
@@ -57,7 +39,7 @@ test('deployment archive waits through provider processing and does not cancel u
           deployable: true,
         });
       }
-      advance(45001);
+      t.mock.timers.tick(45001);
       assert.equal(init.signal.aborted, false, 'an upload, completion or deployment was cancelled locally');
       if (pathname.endsWith('/deploy')) {
         deployments++;
@@ -87,16 +69,16 @@ test('deployment archive waits through provider processing and does not cancel u
       });
     for (let turn = 0; turn < 300 && !completed; turn++) {
       await new Promise((resolve) => setImmediate(resolve));
-      advance(1000);
+      t.mock.timers.tick(1000);
     }
-    assert.equal(completed, true, JSON.stringify({ polls, deployments, failure: failure?.message }));
+    assert.equal(completed, true);
     await pending;
     if (failure) throw failure;
     assert.equal(polls, 121);
     assert.equal(deployments, 1);
     assert.equal(result.deployment.deployment_id, 'slow-deployment');
   } finally {
-    t.mock.reset();
+    t.mock.timers.reset();
     assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir()));
     fs.rmSync(root, { recursive: true, force: true });
   }

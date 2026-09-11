@@ -91,7 +91,7 @@ npm run test:package
 
 `test:package` creates a real tarball in `.artifacts/` and checks its files, hashes, licenses, and permissions. It verifies installation, npx, npm exec, arguments, output, exit codes, working directories, cancellation, and credential reuse through a local mock API. Tests run in temporary directories outside the repository, including paths with spaces and Korean characters. They do not modify production projects or actual user credentials.
 
-Set `JORIPSPACE_BASELINE_CLI` to the original `bin/joripspace.js` path to compare against the original CLI; otherwise, comparisons use this repository's source. GitHub CI covers Windows, macOS, and Linux with Node.js 18, 20, 22, and 24. It does not upload artifacts, cache dependencies, or publish to GitHub Packages.
+Set `JORIPSPACE_BASELINE_CLI` to the original `bin/joripspace.js` path to compare against the original CLI; otherwise, comparisons use this repository's source. Run the checks locally before publishing; this repository does not use GitHub Actions for testing or npm releases.
 
 To try a tarball before publishing, use its absolute path:
 
@@ -99,7 +99,7 @@ To try a tarball before publishing, use its absolute path:
 npm exec --yes --package="/absolute/path/joripspace-cli-0.5.0.tgz" -- joripspace --help
 ```
 
-On Windows, use a path such as `C:/path/to/joripspace-cli-0.5.0.tgz`. Detailed engineering records are available in [verification](docs/verification.md) and [packaging](docs/packaging.md) (Korean).
+On Windows, use a path such as `C:/path/to/joripspace-cli-0.5.6.tgz`. The local release procedure is documented in [release](docs/release.md).
 
 ## License
 

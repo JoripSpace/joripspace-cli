@@ -129,6 +129,58 @@ test('realtime v2 management uses the project credential and encoded key cursor 
   }
 });
 
+test('github prepare writes only the connection workflow for an empty remote', async () => {
+  const { root, workspace } = fixture();
+  const api = await apiServer((request) => {
+    assert.equal(request.headers.authorization, 'Bearer project-token');
+    if (request.url === '/v1/projects/demo') {
+      return {
+        body: {
+          project_id: 'demo',
+          project_slug: 'demo',
+          deployment: {
+            mode: 'github_actions',
+            connection_id: 'build_connection_test',
+            repository: 'example/project',
+            branch: 'main',
+            trigger_type: 'branch',
+            trigger_ref: 'main',
+            workflow_path: '.github/workflows/joripspace-build_connection_test.yml',
+            source_status: 'empty',
+          },
+        },
+      };
+    }
+    return { status: 404, body: { message: `unhandled ${request.url}` } };
+  });
+  try {
+    writeConnection(workspace, api.url);
+    fs.writeFileSync(path.join(workspace, 'worker.js'), 'export default { fetch() { return new Response("ok"); } };\n');
+    const init = require('node:child_process').spawnSync('git', ['-C', workspace, 'init', '--initial-branch', 'main'], { encoding: 'utf8' });
+    assert.equal(init.status, 0, init.stderr);
+    const remote = require('node:child_process').spawnSync(
+      'git',
+      ['-C', workspace, 'remote', 'add', 'origin', 'https://github.com/example/project.git'],
+      { encoding: 'utf8' }
+    );
+    assert.equal(remote.status, 0, remote.stderr);
+    const result = await runCli(['github', 'prepare', '--cwd', workspace, '--json']);
+    assert.equal(result.code, 0, result.stderr);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.status, 'prepared');
+    assert.equal(body.entrypoint, 'worker.js');
+    const workflow = fs.readFileSync(path.join(workspace, ...body.workflow_path.split('/')), 'utf8');
+    assert.match(workflow, /JORIPSPACE_CONNECTION_ID: "build_connection_test"/u);
+    assert.match(workflow, /JORIPSPACE_ENTRYPOINT: "worker.js"/u);
+    assert.match(workflow, /done < <\(find \./u);
+    assert.doesNotMatch(workflow, /\n\+/u);
+    assert.equal(fs.existsSync(path.join(workspace, 'README.md')), false);
+  } finally {
+    await api.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('deployment history and detail expose the failing commit and source location', async () => {
   const {root,workspace}=fixture();
   const failure={deployment_id:'dep-failed',status:'failed',error_stage:'github_build',error_code:'github_failure',error_details:'src/app.ts:12:4 SyntaxError',github:{commit_sha:'a'.repeat(40),run_attempt:2,run_url:'https://github.com/owner/repo/actions/runs/123'}};
@@ -948,6 +1000,63 @@ test('start restores the latest direct deployment before returning the current-s
     assert.equal(fs.existsSync(path.join(workspace, '.OpEnCoDe')), false);
     assert.match(fs.readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8'), /joripspace:start/);
     assert.doesNotMatch(fs.readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8'), /remote instructions/);
+  } finally {
+    await api.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('start restores an existing project into its reserved empty GitHub repository workspace', async () => {
+  const { root, workspace } = fixture();
+  const api = await apiServer((request) => {
+    assert.equal(request.headers.authorization, 'Bearer github-start-token');
+    if (request.url === '/v1/me/projects') {
+      return { body: { projects: [{ name: 'Demo', project_slug: 'demo', role: 'owner' }] } };
+    }
+    if (request.url === '/v1/projects/demo') {
+      return {
+        body: {
+          project_slug: 'demo',
+          status: 'active',
+          deployment: {
+            mode: 'github_actions',
+            connection_id: 'build_connection_empty',
+            repository: 'example/project',
+            branch: 'main',
+            workflow_path: '.github/workflows/joripspace-build_connection_empty.yml',
+            source_status: 'empty',
+          },
+        },
+      };
+    }
+    if (request.url === '/v1/projects/demo/deployments?limit=1') {
+      return {
+        body: {
+          deployments: [{ deployment_id: 'deployment-existing', status: 'success', download_available: true }],
+        },
+      };
+    }
+    if (request.url === '/v1/projects/demo/deployments/deployment-existing/source') {
+      return { body: { deployment_id: 'deployment-existing', files: { 'worker.js': 'export default {};\n' } } };
+    }
+    return { status: 404, body: { message: `unhandled ${request.url}` } };
+  });
+  try {
+    const result = await runCli(
+      ['start', 'demo', '--cwd', workspace, '--token', 'github-start-token', '--api-url', api.url, '--json'],
+      { env: { HOME: path.join(root, 'home'), USERPROFILE: path.join(root, 'home') } }
+    );
+    assert.equal(result.code, 0, result.stderr);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.context.source_sync.operation, 'deployment_restore');
+    assert.equal(fs.readFileSync(path.join(workspace, 'worker.js'), 'utf8'), 'export default {};\n');
+    const remote = require('node:child_process').spawnSync(
+      'git',
+      ['-C', workspace, 'remote', 'get-url', 'origin'],
+      { encoding: 'utf8' }
+    );
+    assert.equal(remote.status, 0, remote.stderr);
+    assert.equal(remote.stdout.trim(), 'https://github.com/example/project.git');
   } finally {
     await api.close();
     fs.rmSync(root, { recursive: true, force: true });

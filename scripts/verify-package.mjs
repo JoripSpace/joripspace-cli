@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, statSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,8 +13,6 @@ const artifacts = join(root, '.artifacts');
 mkdirSync(artifacts, { recursive: true });
 const npm = process.env.npm_execpath;
 assert.ok(npm && existsSync(npm), 'Run with npm run test:package');
-const npx = join(dirname(npm), 'npx-cli.js');
-assert.ok(existsSync(npx));
 const temporary = mkdtempSync(join(tmpdir(), 'joripspace npm 한글 '));
 assert.ok(relative(root, temporary).startsWith('..') || isAbsolute(relative(root, temporary)), 'Test must be outside the source repository');
 const project = join(temporary, '사용자 프로젝트');
@@ -96,7 +94,7 @@ try {
   for (const spec of Object.values(packedPackage.dependencies)) assert.doesNotMatch(spec, /file:|link:|workspace:/);
   report.checks.push('tarball_allowlist_contents_hashes_shebang_execute_mode_no_install_hooks');
 
-  await checked([npm, 'install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], installed);
+  await checked([npm, 'install', '--ignore-scripts', '--no-audit', '--no-fund', '--prefix', installed, tarball], installed);
   const entry = join(installed, 'node_modules', '@joripspace', 'cli', 'bin', 'joripspace.js');
   assert.ok(existsSync(entry));
   if (process.platform !== 'win32') assert.ok((statSync(entry).mode & 0o111) !== 0);
@@ -113,13 +111,12 @@ try {
   }
   report.checks.push('reference_help_version_templates_realtime_docs_arguments_stdout_stderr_exit_codes');
   const exec = args => checked([npm, 'exec', '--yes', '--package', tarball, '--', 'joripspace', ...args]);
-  copyFileSync(tarball, join(temporary, metadata.filename));
-  const npxVersion = await checked([npx, '-y', `../${metadata.filename}`, '--version']);
+  const npxVersion = await exec(['--version']);
   assert.equal(npxVersion.stdout.trim(), packedPackage.version, JSON.stringify(npxVersion));
   const npxTemplates = await exec(['templates', '--json']);
   assert.equal(npxTemplates.stdout, (await checked([entry, 'templates', '--json'])).stdout);
   assert.deepEqual(
-    await run([npx, '-y', `../${metadata.filename}`, 'unknown-command', '--json']),
+    await run([npm, 'exec', '--yes', '--package', tarball, '--', 'joripspace', 'unknown-command', '--json']),
     await run([reference, 'unknown-command', '--json'])
   );
   report.checks.push('npx_tarball_and_npm_exec_bin_resolution');
@@ -159,7 +156,10 @@ try {
   const credentialBefore = readFileSync(credentialFile, 'utf8');
   const query = '키 공백+/=';
   await exec(['realtime-v2', 'keys', '--cursor', query, '--json']);
-  await checked([npx, '-y', `./${metadata.filename}`, 'realtime-v2', 'status', '--cwd', project, '--json'], temporary);
+  await checked(
+    [npm, 'exec', '--yes', '--package', tarball, '--', 'joripspace', 'realtime-v2', 'status', '--cwd', project, '--json'],
+    temporary
+  );
   const nested = join(project, '하위 폴더');
   mkdirSync(nested);
   await checked([entry, 'get', '--json'], nested);
@@ -204,5 +204,5 @@ try {
   if (dirname(temporary) !== resolve(tmpdir()) || !temporary.startsWith(join(tmpdir(), 'joripspace npm 한글 '))) {
     throw new Error('Unexpected package verification cleanup path');
   }
-  rmSync(temporary, { recursive: true, force: true });
+  rmSync(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }

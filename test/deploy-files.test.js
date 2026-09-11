@@ -6,6 +6,7 @@ const test = require('node:test');
 const { createCheckpointCommands } = require('../lib/checkpoint-commands');
 const {
   assertDeployableProjectPath,
+  assertNoUnresolvedPackageImportsInDirectory,
   buildDeployPayload,
   resolveDeploySourceDirectory,
   resolveDeploySourceFile,
@@ -99,6 +100,43 @@ test('source, file, dir, and archive staging reject a workspace junction escape'
       ),
       /symbolic link or junction/
     );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('deploy preflight rejects package imports that were not bundled', () => {
+  const { root, workspace } = fixture();
+  try {
+    fs.writeFileSync(
+      path.join(workspace, 'worker.js'),
+      'import { unzipSync } from "fflate";\nexport default { fetch() { return unzipSync; } };'
+    );
+    assert.throws(
+      () => buildDeployPayload({ source: path.join(workspace, 'worker.js'), cwd: workspace }),
+      (error) => error?.code === 'unbundled_dependency' && /dist\/worker\.js/.test(error.message)
+    );
+    assert.throws(
+      () => assertNoUnresolvedPackageImportsInDirectory(workspace),
+      (error) => error?.code === 'unbundled_dependency' && /fflate/.test(error.message)
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('deploy preflight accepts relative modules and bundled output', () => {
+  const { root, workspace } = fixture();
+  try {
+    fs.writeFileSync(
+      path.join(workspace, 'worker.js'),
+      'import value from "./value.js";\nexport default { fetch() { return value; } };'
+    );
+    fs.writeFileSync(path.join(workspace, 'value.js'), 'export default new Response("ok");');
+    assert.doesNotThrow(() =>
+      buildDeployPayload({ dir: workspace, cwd: workspace, entrypoint: 'worker.js' })
+    );
+    assert.doesNotThrow(() => assertNoUnresolvedPackageImportsInDirectory(workspace));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -15,7 +15,7 @@ const JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES = [
   '.joripspace/local-backups/',
 ];
 const JORIPSPACE_ONBOARDING_GITIGNORE_REMOVALS = ['.joripspace/agent-session.json'];
-const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-09-05T18:00:00+09:00';
+const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-09-07T14:00:27+09:00';
 const JORIPSPACE_WORKFLOW_POLICY = Object.freeze({
   target: 'joripspace',
   guide_required: true,
@@ -207,12 +207,13 @@ const CODEX_MCP_ONBOARDING_LINES = [
   '- For a completely new project, start_project_session embeds the current published templates in onboarding.template_choice.templates. After workspace files are ready, use that embedded list before the first service question. Do not depend on a newly added or separately cached list_templates tool during initial onboarding.',
   '- If onboarding.template_choice.status is auto_selected_existing_project, option 0 is already selected because the project has an existing GitHub source or deployment baseline. Do not show a template table and do not ask new-service questions such as the service name, description, or features. After synchronization or restoration, immediately perform the task already requested by the user; if no task was requested, ask only what they want to work on in the existing project.',
   '- If the embedded template_choice status says retry_required_before_service_questions, retry start_project_session once with the same project and connection token. Do not report that templates are unavailable and silently skip the choice.',
-  '- Only when onboarding.template_choice.status is required_before_service_questions, show option 0 as "템플릿 없이 시작" and show the embedded selectable templates in a Markdown table. Wait for the user choice; templates are optional.',
-  '- When the user selects a template, run the installed JoripSpace CLI absolute path with `install-template --template TEMPLATE_SLUG --project PROJECT_ID --dir .` without putting any token in the command and without `--force`. Inspect the installed files, then continue the normal service questions and customization. If files collide, overwrite nothing; continue without a template unless the user explicitly approves an overwrite retry.',
+  '- Only when onboarding.template_choice.status is required_before_service_questions, show option 0 as "Start without a template" and show the embedded selectable templates in a Markdown table. Wait for the user choice; templates are optional.',
+  '- When the user selects a template, run the installed JoripSpace CLI absolute path with `install-template --template TEMPLATE_SLUG --project PROJECT_ID --dir .` without putting any token in the command and without `--force`. Inspect the installed files and complete the required template setup below before continuing the normal service questions and customization. If files collide, overwrite nothing; continue without a template unless the user explicitly approves an overwrite retry.',
+  "- After installing a selected template and before service questions or customization, inspect its code, documentation, configuration, and schema or migration files to determine whether it uses env.DB. When it uses DB, setting up the required project DB is mandatory: call describe_db first, compare the existing schema with the template's actual queries, review tables, indexes, and seed data for compatibility, apply only the required compatible changes with run_db_migration, then verify the resulting schema with describe_db and relevant reads with query_db. Do not merely copy SQL files, expose a public migration route, deploy, or report the template ready while required DB setup is incomplete. If a safe compatible migration cannot be determined, stop and report the specific schema or data conflict instead of guessing, dropping existing data, or resetting the DB.",
   '- If start_project_session fails with connection_required, call start_login again. If it fails with invalid_token, ask for a fresh token. If it returns needs_project_choice, ask the user to choose one project and call start_project_session again. If project_not_found, ask the user to confirm the project ID.',
   '- Only for a completely new project whose template_choice.status is required_before_service_questions, after the optional template choice ask onboarding questions one at a time: service name, what the service does, three required features, whether login is needed, whether payment/email/file upload/admin is needed, then choose or recommend the deployment target yourself.',
   '- When both existing work and a service description are absent, ask once for the company or service, required content, and desired mood. Keep the resulting project brief in the application source only when it is useful to the project.',
-  '- Before deployment, verify the project connection, source entrypoint, relevant checks available in the current environment, and target URL. Direct MCP deployment of Worker-compatible source does not require Node.js or Git.',
+  '- Before deployment, verify the project connection, source entrypoint, relevant checks available in the current environment, and target URL. If runtime source imports package dependencies, run the project build and deploy the generated bundled Worker entrypoint such as dist/worker.js; never deploy an unbundled source entrypoint that depends on node_modules. Direct MCP deployment of Worker-compatible source does not require Node.js or Git.',
   '- Never obtain a generated bundle or large source file by printing it through a shell/tool output and copying that output into deploy_code. Tool output can be truncated even when the local file is valid. Use the installed JoripSpace CLI absolute path with `deploy --dir` so local bytes, sizes, and hashes are preserved end to end.',
   '- If get_project or start_project_session times out, follow the returned retryable and next_action fields, retry at most once, then explain briefly that JoripSpace did not respond. Do not ask the beginner to inspect logs, tokens, Node.js, Git, or network internals.',
   '- Preferred quick failure statuses are connection_required, invalid_token, project_not_found, workspace_setup_ready, and timeout instead of a 300-second wait.',
@@ -493,6 +494,7 @@ const REQUIRED_ONBOARDING_MARKERS = [
   'As soon as two or more individual candidates are shown, the table is mandatory',
   'For restore or rollback choices include number, version or identifier, timestamp, label or status, and effect',
   'For template choices include number, template name, suitable use, and included features',
+  'When it uses DB, setting up the required project DB is mandatory',
   'Local Git and Node.js readiness during onboarding',
   'check `git --version`, `node --version`, and `npm --version` directly',
   'ask for one explicit approval to install only the missing required tools',
@@ -682,6 +684,7 @@ function projectDeploymentRoutingLines(projectConfig = {}) {
       `- Expected workflow: ${workflowPath}`,
       '- A normal user request such as "배포해줘" is sufficient. Do not ask the user to mention GitHub, Actions, OIDC, workflow setup, commit, or push separately.',
       '- For an explicit deployment request, inspect and update the workflow when missing or stale, run the required checks, commit the exact relevant changes, and safely push them to the connected deployment branch (or the default branch used by a Release connection) so GitHub Actions performs the deployment.',
+      '- When the connected repository is waiting for its first source, run `joripspace github prepare` after the application entrypoint exists and before staging the first deployment commit. This creates only the connection-specific managed workflow and never invents application source.',
       '- Do not create a checkpoint through MCP, the installed CLI, or a verified legacy helper before this push. GitHub Actions creates the deployment checkpoint, so a pre-push agent checkpoint would duplicate storage and history. Only create a separate checkpoint when the user explicitly asks to save one independently of deployment.',
       '- Do not call deploy_code, deploy_checkpoint, the installed CLI direct deploy command, or a verified legacy direct package helper for this project while this GitHub route is connected.',
       '- Never force-push or overwrite unrelated user changes. If the connected branch cannot be updated safely, report the concrete Git conflict or permission blocker.',
@@ -710,6 +713,8 @@ function projectAgentsFile() {
     '<!-- joripspace:start -->',
     '',
     JORIPSPACE_CLI_GUIDE,
+    '',
+    'Public onboarding reference: https://api.joripspace.com/onboarding.md',
     '',
     'The JoripSpace project is stored in `.joripspace/project`.',
     '',

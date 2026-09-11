@@ -19,6 +19,7 @@ const { createGithubCommands } = require('../lib/github-commands');
 const {
   assertDeployableProjectPath,
   assertDeployableSourceFilePath,
+  assertNoUnresolvedPackageImportsInDirectory,
   buildDeployPayload,
   isProtectedProjectPath,
   resolveDeploySourceDirectory,
@@ -66,6 +67,7 @@ const checkpointCommands = createCheckpointCommands({
   arrayFlag,
   assertDeployableProjectPath,
   assertDeployableSourceFilePath,
+  assertNoUnresolvedPackageImportsInDirectory,
   booleanFlag,
   output,
   positiveIntegerFlag,

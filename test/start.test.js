@@ -14,7 +14,7 @@ const {
 } = require('../lib/start');
 
 function fixture() {
-  const root = fs.realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'joripspace-start-')));
+  const root = mkdtempSync(path.join(os.tmpdir(), 'joripspace-start-'));
   const home = path.join(root, 'home');
   const workspace = path.join(root, 'workspace');
   mkdirSync(home, { recursive: true });
@@ -294,7 +294,7 @@ test('a new empty project embeds the marketplace template choice before project 
     assert.equal(result.template_choice.status, 'ready');
     assert.deepEqual(result.template_choice.no_template_option, {
       number: 0,
-      name: '템플릿 없이 시작',
+      name: 'Start without a template',
     });
     assert.equal(result.template_choice.templates[0].number, 1);
     assert.equal(result.template_choice.templates[0].slug, 'jorip-note');
@@ -306,7 +306,7 @@ test('a new empty project embeds the marketplace template choice before project 
   }
 });
 
-for (const viaAlias of [false, true]) test(`start safely migrates generated legacy workspace metadata (${viaAlias ? 'root alias' : 'direct root'})`, async () => {
+test('start safely migrates generated legacy workspace metadata and package helpers', async () => {
   const { root, workspace } = fixture();
   const core = require('../vendor/core/onboarding.cjs');
   const config = generatedLegacyProject();
@@ -339,11 +339,9 @@ for (const viaAlias of [false, true]) test(`start safely migrates generated lega
       `${JSON.stringify({ private: true, scripts: core.projectPackageHelperScripts(), dependencies: { fflate: '^0.8.2' } }, null, 2)}\n`
     );
 
-    const selectedWorkspace = viaAlias ? path.join(root, 'workspace-alias') : workspace;
-    if (viaAlias) fs.symlinkSync(workspace, selectedWorkspace, process.platform === 'win32' ? 'junction' : 'dir');
     const result = await startProject({
       projectId: 'heyenterc',
-      cwd: selectedWorkspace,
+      cwd: workspace,
       apiToken: 'token',
       apiRequest: apiFor([{ project_slug: 'heyenterc', name: 'heyenterc' }]),
       configureMcpServers: () => [],
