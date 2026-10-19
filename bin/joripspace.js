@@ -343,6 +343,11 @@ async function login(flags) {
     );
     return;
   }
+  const enteredCode = await promptConnectionCode(flags);
+  if (enteredCode !== null) {
+    await login({ ...flags, code: normalizeConnectionCode(enteredCode) });
+    return;
+  }
   output(flags, browserConnectInstructions(), printBrowserConnectInstructions);
 }
 
@@ -1529,21 +1534,9 @@ function canonicalWorkspaceEntry(directory, expected) {
 
 async function connectForStart(flags, context) {
   let connectionCode = stringFlag(flags, 'code');
-  const interactive = !flags.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  if (!connectionCode && !interactive) return resolveConnection(flags);
-
   if (!connectionCode) {
-    const instructions = browserConnectInstructions();
-    console.log('브라우저에서 JoripSpace 연결을 승인하세요.');
-    console.log(`연결 페이지: ${instructions.connect_url}`);
-    console.log('승인 후 표시된 5분 일회용 연결 코드를 이 터미널에 붙여 넣으세요.');
-    openExternalUrl(instructions.connect_url);
-    const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
-    try {
-      connectionCode = await prompt.question('연결 코드: ');
-    } finally {
-      prompt.close();
-    }
+    connectionCode = await promptConnectionCode(flags);
+    if (connectionCode === null) return resolveConnection(flags);
   }
 
   const exchangeApiBaseUrl = normalizeCredentialApiUrl(unauthenticatedApiBaseUrl(flags));
@@ -1562,6 +1555,29 @@ async function connectForStart(flags, context) {
     { output: false }
   );
   return resolveConnection({ ...flags, cwd: context.cwd });
+}
+
+async function promptConnectionCode(flags) {
+  if (flags.json || !process.stdin.isTTY || !process.stdout.isTTY) return null;
+  const instructions = browserConnectInstructions();
+  console.log('브라우저에서 JoripSpace 연결을 승인하세요.');
+  console.log(`연결 페이지: ${instructions.connect_url}`);
+  console.log('승인 후 표시된 5분 일회용 연결 코드를 이 터미널에 붙여 넣으세요.');
+  openExternalUrl(instructions.connect_url);
+  const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const cancellation = new AbortController();
+  prompt.once('close', () => cancellation.abort());
+  try {
+    return await prompt.question('연결 코드: ', { signal: cancellation.signal });
+  } catch (error) {
+    if (error?.code !== 'ABORT_ERR') throw error;
+    const cancelled = new Error('연결 코드 입력이 취소되었습니다. login을 다시 실행하세요.');
+    cancelled.code = 'connection_required';
+    cancelled.exitCode = 2;
+    throw cancelled;
+  } finally {
+    prompt.close();
+  }
 }
 
 function openExternalUrl(url) {
