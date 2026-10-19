@@ -16,6 +16,7 @@ const { createTemplateCommands } = require('../lib/template-commands');
 const { createCheckpointCommands } = require('../lib/checkpoint-commands');
 const { createRealtimeV2Commands } = require('../lib/realtime-v2-commands');
 const { createGithubCommands } = require('../lib/github-commands');
+const { createProjectCommand } = require('../lib/project-create');
 const {
   assertDeployableProjectPath,
   assertDeployableSourceFilePath,
@@ -105,6 +106,7 @@ const githubCommand = createGithubCommands({
 });
 
 const DEFAULT_API_URL = 'https://api.joripspace.com';
+const createProject = createProjectCommand({ apiRequest, output, requireApiToken, stringFlag });
 const GENERAL_REQUEST_TIMEOUT_MS = 25_000;
 const SESSION_COOKIE_PREFIX = 'joripspace_session=';
 function loadTemplatesPackage() {
@@ -182,7 +184,7 @@ async function main() {
       await startProjectCommand(rest, flags);
       return;
     case 'create':
-      webOnlyCommand('프로젝트 생성');
+      await createProject(flags);
       return;
     case 'get':
       await getProject(flags);
@@ -1082,7 +1084,10 @@ async function apiRequest(flags, apiPath, options) {
     'X-Joripspace-Session-Context': 'cli',
   };
 
-  const timeoutMs = options.timeoutMs ?? (isDeploymentRequest(apiPath) ? null : GENERAL_REQUEST_TIMEOUT_MS);
+  const timeoutMs =
+    options.timeoutMs === null
+      ? null
+      : (options.timeoutMs ?? (isDeploymentRequest(apiPath) ? null : GENERAL_REQUEST_TIMEOUT_MS));
   const controller = new AbortController();
   const timer = timeoutMs === null ? undefined : setTimeout(() => controller.abort(), timeoutMs);
   let response;

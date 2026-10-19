@@ -39,11 +39,13 @@ async function fixture(t) {
     const result =
       request.url === '/v1/auth/connection-code/exchange'
         ? { connect_token: 'synthetic-interaction-token' }
-        : request.url === '/v1/me/projects'
-          ? { account_id: 'interaction-account', projects: [{ project_slug: 'demo', role: 'owner' }] }
-          : request.url.endsWith('/deployments?limit=1')
-            ? { deployments: [] }
-            : { project_slug: 'demo', status: 'active', deployment: { mode: 'direct' } };
+        : request.url === '/v1/projects'
+          ? { project_id: 'my-demo', project_slug: 'my-demo', default_url: 'https://my-demo.example' }
+          : request.url === '/v1/me/projects'
+            ? { account_id: 'interaction-account', projects: [{ project_slug: 'demo', role: 'owner' }] }
+            : request.url.endsWith('/deployments?limit=1')
+              ? { deployments: [] }
+              : { project_slug: 'demo', status: 'active', deployment: { mode: 'direct' } };
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(result));
   });
@@ -55,7 +57,7 @@ async function fixture(t) {
     fs.rmSync(root, { recursive: true, force: true });
   });
   const url = `http://127.0.0.1:${server.address().port}`;
-  function run(args, { tty = false, json = true, answer, eof = false } = {}) {
+  function run(args, { tty = false, json = true, answer, eof = false, agreements } = {}) {
     const env = Object.fromEntries(
       Object.entries(process.env).filter(
         ([key]) => !/^(JORIPSPACE_|NODE_OPTIONS$|NODE_PATH$|FORCE_COLOR$)/i.test(key)
@@ -89,7 +91,8 @@ async function fixture(t) {
       );
       let stdout = '',
         stderr = '',
-        answered = false;
+        answered = false,
+        agreementIndex = 0;
       const timer = setTimeout(() => {
         child.kill();
         reject(new Error(`CLI waited for input: ${args.join(' ')}`));
@@ -99,6 +102,13 @@ async function fixture(t) {
         if (!answered && stdout.includes('연결 코드: ') && (answer !== undefined || eof)) {
           answered = true;
           child.stdin.end(eof ? undefined : `${answer}\n`);
+        }
+        const count = (stdout.match(/Do you agree\? \[y\/N\]: /g) || []).length;
+        if (agreements && count > agreementIndex && agreementIndex < agreements.length) {
+          const value = agreements[agreementIndex++];
+          if (value === null || agreementIndex === agreements.length) {
+            child.stdin.end(value === null ? undefined : `${value}\n`);
+          } else child.stdin.write(`${value}\n`);
         }
       });
       child.stderr.on('data', (chunk) => {
@@ -231,4 +241,63 @@ test('every command entry point returns JSON or a JSON error without input in a 
     }
   }
   assert.deepEqual(f.browserCalls(), []);
+});
+
+test('Free creation returns translatable agreements to a TTY agent and creates only after explicit flags', async (t) => {
+  const f = await fixture(t);
+  for (const extra of [[], ['--yes'], ['--agree-noncommercial', '--agree-billing']]) {
+    const result = await f.run(['create', '--name', 'my-demo', ...extra], { tty: true });
+    assert.equal(result.code, 2);
+    assert.equal(result.stdout, '');
+    const details = JSON.parse(result.stderr).error.details;
+    assert.equal(details.agreements.length, 3);
+    assert.equal(details.language, 'en');
+    assert.match(details.agent_instruction, /user's language/);
+  }
+  assert.deepEqual(f.calls, []);
+  assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'])).code, 0);
+  const metadata = fs.readFileSync(path.join(f.workspace, '.env.joripspace'), 'utf8');
+  const result = await f.run(
+    ['create', '--name', ' MY-DEMO ', '--agree-noncommercial', '--agree-billing', '--agree-retention'],
+    { tty: true }
+  );
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).project_slug, 'my-demo');
+  const creates = f.calls.filter((call) => call.url === '/v1/projects');
+  assert.equal(creates.length, 1);
+  assert.deepEqual(JSON.parse(creates[0].body), {
+    name: 'my-demo',
+    free_project_noncommercial_agreement: true,
+    billing_agreement: true,
+    free_project_retention_agreement: true,
+  });
+  assert.equal(fs.readFileSync(path.join(f.workspace, '.env.joripspace'), 'utf8'), metadata);
+  assert.equal(fs.existsSync(path.join(f.workspace, '.joripspace')), false);
+  assert.deepEqual(f.browserCalls(), []);
+});
+
+test('terminal Free creation asks all three English agreements and proceeds only after three yes answers', async (t) => {
+  const f = await fixture(t);
+  assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'])).code, 0);
+  const result = await f.run(['create', '--name', 'my-demo'], {
+    tty: true,
+    json: false,
+    agreements: ['yes', 'yes', 'yes'],
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal((result.stdout.match(/Do you agree\?/g) || []).length, 3);
+  assert.match(result.stdout, /personal and non-commercial/);
+  assert.match(result.stdout, /without automatic additional charges/);
+  assert.match(result.stdout, /30 days or more/);
+  assert.equal(f.calls.filter((call) => call.url === '/v1/projects').length, 1);
+});
+
+test('declined, empty, or cancelled terminal agreements never send a create request', async (t) => {
+  const f = await fixture(t);
+  for (const agreements of [['no'], [''], ['yes', 'no'], ['yes', 'yes', 'no'], [null]]) {
+    const result = await f.run(['create', '--name', 'my-demo'], { tty: true, json: false, agreements });
+    assert.notEqual(result.code, 0);
+    assert.notEqual(result.stderr, '');
+  }
+  assert.deepEqual(f.calls, []);
 });

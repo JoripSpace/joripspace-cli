@@ -529,7 +529,7 @@ test('deploy includes customer-sensitive files, excludes platform files, and req
   }
 });
 
-test('ordinary requests use 25 seconds while deployments have no arbitrary response deadline', async () => {
+test('ordinary requests use 25 seconds while deployments and project provisioning have no arbitrary response deadline', async () => {
   const { root, workspace } = fixture();
   const source = path.join(root, 'worker.js');
   const preload = path.join(root, 'capture-timeout.cjs');
@@ -563,6 +563,22 @@ test('ordinary requests use 25 seconds while deployments have no arbitrary respo
     );
     assert.equal(deploy.code, 0, deploy.stderr);
     assert.equal(JSON.parse(deploy.stdout).observed_timeout, undefined);
+    const create = await runCli(
+      [
+        'create',
+        '--name',
+        'my-demo',
+        '--agree-noncommercial',
+        '--agree-billing',
+        '--agree-retention',
+        '--cwd',
+        workspace,
+        '--json',
+      ],
+      { cwd: root, env }
+    );
+    assert.equal(create.code, 0, create.stderr);
+    assert.equal(JSON.parse(create.stdout).observed_timeout, undefined);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -619,7 +635,7 @@ test('web-only commands fail before making an API request and emit JSON errors',
   });
   try {
     writeConnection(workspace, api.url);
-    const result = await runCli(['create', '--name', 'nope', '--cwd', workspace, '--json']);
+    const result = await runCli(['delete', '--project', 'demo', '--cwd', workspace, '--json']);
     assert.equal(result.code, 1);
     assert.equal(result.stdout, '');
     const error = JSON.parse(result.stderr).error;
