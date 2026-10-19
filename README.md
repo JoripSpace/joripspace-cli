@@ -53,7 +53,9 @@ npx -y @joripspace/cli@latest get --cwd "my project" --json
 
 Follow the link from `login` to [JoripSpace Connect](https://joripspace.com/connect/), approve the connection, and copy the one-time code, which expires after five minutes. Replace `my-app` with your existing project slug.
 
-`login --code` stores the connection token and API URL in the project's Git-ignored `.env.joripspace` file. A regular `.env` file is not used for authentication. Subsequent npx runs reuse the same project credentials, so you do not need to log in each time. Credentials and project state are not stored inside the npm package or cache.
+`login --code` stores the connection token in the OS credential store: Windows Credential Manager, macOS Keychain, or Linux Secret Service. The project's Git-ignored `.env.joripspace` contains only the API URL, account ID, and connection source, without the token. A regular `.env` file is not used for authentication. Subsequent npx runs reuse the saved connection, so you do not need to log in each time. Credentials and project state are not stored inside the npm package or cache.
+
+If the OS credential store is unavailable, login stops without saving a plaintext token. For automation, supply `JORIPSPACE_API_TOKEN` and the matching `JORIPSPACE_API_URL` through the process environment.
 
 Without `--cwd`, the CLI uses your current working directory and searches parent directories for the project connection. Existing `.joripspace/project` markers, the `--project` alias, environment variables, and legacy credential validation and migration remain supported. The default API is `https://api.joripspace.com`; use the existing `--api-url` option or `JORIPSPACE_API_URL` environment variable to override it.
 
@@ -61,9 +63,27 @@ Without `--cwd`, the CLI uses your current working directory and searches parent
 
 ## Optional global installation
 
+```sh
+npm install -g @joripspace/cli@latest
+joripspace --help
+```
+
+An existing global installation does not update automatically. Run the same install command to update, then check the installed version:
+
+```sh
+npm install -g @joripspace/cli@latest
+joripspace --version
+```
+
+You can continue using `npx -y @joripspace/cli@latest ...` to select the latest published release on each invocation. Global installation and permanent PATH changes are not required.
+
+## CLI language
+
 CLI notices and prompts follow the OS default locale: Korean for `ko`, English otherwise, including
 unsupported or unavailable locales. JSON field names and error codes stay unchanged. Agreement payloads
 keep English text and the Korean originals so agents can explain them in the user's conversation language.
+
+## Create a project
 
 To create a new Free project, run `joripspace create --name my-app --json` first. It returns all three required agreements
 in English with the Korean web originals. Login is verified with the server before any agreements are shown;
@@ -71,13 +91,6 @@ missing or revoked credentials stop creation. Agents must present the agreements
 and obtain explicit consent before rerunning with `--agree-noncommercial --agree-billing --agree-retention --json`. Interactive
 terminals ask each agreement separately. `--yes` cannot replace consent. Web/server name restrictions and uniqueness
 checks apply. Creation does not link or change local project source; use `start` separately when requested.
-
-```sh
-npm install -g @joripspace/cli
-joripspace --help
-```
-
-You can continue using npx instead. Global installation and permanent PATH changes are not required.
 
 ## Commands and compatibility
 
@@ -107,10 +120,10 @@ Set `JORIPSPACE_BASELINE_CLI` to the original `bin/joripspace.js` path to compar
 To try a tarball before publishing, use its absolute path:
 
 ```sh
-npm exec --yes --package="/absolute/path/joripspace-cli-0.5.0.tgz" -- joripspace --help
+npm exec --yes --package="/absolute/path/joripspace-cli-VERSION.tgz" -- joripspace --help
 ```
 
-On Windows, use a path such as `C:/path/to/joripspace-cli-0.5.6.tgz`. The local release procedure is documented in [release](docs/release.md).
+Replace `VERSION` with the version in the tarball filename. On Windows, use a path such as `C:/path/to/joripspace-cli-VERSION.tgz`. The local release procedure is documented in [release](docs/release.md).
 
 ## License
 
