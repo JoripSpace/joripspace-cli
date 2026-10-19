@@ -15,7 +15,7 @@ const JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES = [
   '.joripspace/local-backups/',
 ];
 const JORIPSPACE_ONBOARDING_GITIGNORE_REMOVALS = ['.joripspace/agent-session.json'];
-const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-09-07T14:00:27+09:00';
+const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-10-19T23:49:54+09:00';
 const JORIPSPACE_WORKFLOW_POLICY = Object.freeze({
   target: 'joripspace',
   guide_required: true,
@@ -556,7 +556,7 @@ const REQUIRED_ONBOARDING_MARKERS = [
   'project.secrets.generate',
   '.env.joripspace',
   'JORIPSPACE_GUIDE_CHECKED_AT',
-  'never duplicate its value in JSON',
+  'Never duplicate the value in JSON, TOML, source, another session file, or MCP client configuration.',
   'The shared project identity is the one-line `.joripspace/project` slug.',
   'Realtime inquiry',
   'After MCP or CLI setup',
@@ -718,7 +718,7 @@ function projectAgentsFile() {
     '',
     'The JoripSpace project is stored in `.joripspace/project`.',
     '',
-    'Use the installed JoripSpace CLI for JoripSpace infrastructure, domains, and deployment. Do not configure or wait for MCP.',
+    'For CLI sessions: Use the installed JoripSpace CLI for JoripSpace infrastructure, domains, and deployment. Do not configure or wait for MCP. For an existing MCP session, use its advertised tools and the web handoffs described above.',
     '',
     '<!-- joripspace:end -->',
   ].join('\n');
