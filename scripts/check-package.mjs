@@ -11,7 +11,7 @@ assert.equal(pkg.license, 'MIT');
 assert.match(readFileSync(join(root, 'LICENSE'), 'utf8'), /Copyright \(c\) 2026 Cosmosfarm Software/);
 assert.ok(readFileSync(join(root, 'THIRD_PARTY_NOTICES.md'), 'utf8').includes('BSD-3-Clause'));
 const notices = readFileSync(join(root, 'THIRD_PARTY_NOTICES.md'), 'utf8').replace(/\r\n/g, '\n');
-for (const [name, licenseFile] of [['fflate', 'LICENSE'], ['jsonc-parser', 'LICENSE.md'], ['smol-toml', 'LICENSE']]) {
+for (const [name, licenseFile] of [['fflate', 'LICENSE'], ['jsonc-parser', 'LICENSE.md'], ['smol-toml', 'LICENSE'], ['@napi-rs/keyring', 'LICENSE']]) {
   const dependency = JSON.parse(readFileSync(join(root, 'node_modules', name, 'package.json'), 'utf8'));
   const license = readFileSync(join(root, 'node_modules', name, licenseFile), 'utf8').replace(/\r\n/g, '\n').trim();
   assert.ok(notices.includes(`${name} ${dependency.version}`), `Update the notices for ${name}`);

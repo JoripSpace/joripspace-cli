@@ -32,6 +32,8 @@ const {
   safeProjectRelativePath,
 } = require('../lib/project-paths');
 const { ensureProjectEnvIgnored, readProjectEnv, updateDotEnvFile } = require('../lib/project-env');
+const { createCredentialStore, normalizeCredentialApiUrl } = require('../lib/credential-store');
+const credentialStore = createCredentialStore();
 const { createStartProjectCommand } = require('../lib/start-command');
 const { legacyCredentialSessionConnection, readProjectMarker } = require('../lib/start');
 const { buildTemplateDeployRequest, listTemplates } = loadTemplatesPackage();
@@ -155,6 +157,9 @@ async function main() {
     case 'login':
       await login(flags);
       return;
+    case 'logout':
+      logout(flags);
+      return;
     case 'me':
       await getMe(flags);
       return;
@@ -242,7 +247,10 @@ async function main() {
       await checkpointCommands.command(rest, flags);
       return;
     case 'realtime-v2':
-      await createRealtimeV2Commands({apiRequest,output,projectAuth,requireProjectId,stringFlag})(rest,flags);
+      await createRealtimeV2Commands({ apiRequest, output, projectAuth, requireProjectId, stringFlag })(
+        rest,
+        flags
+      );
       return;
     case 'github':
       await githubCommand(rest, flags);
@@ -308,7 +316,7 @@ async function login(flags) {
   const connectionCode = stringFlag(flags, 'code');
   if (connectionCode) {
     ensureProjectEnvIgnored(projectWorkspaceDir(flags, { discover: false }));
-    const exchangeApiBaseUrl = unauthenticatedApiBaseUrl(flags);
+    const exchangeApiBaseUrl = normalizeCredentialApiUrl(unauthenticatedApiBaseUrl(flags));
     const exchange = await apiRequest(flags, '/v1/auth/connection-code/exchange', {
       method: 'POST',
       body: { code: normalizeConnectionCode(connectionCode) },
@@ -325,11 +333,74 @@ async function login(flags) {
     await saveBrowserConnectToken(flags, normalizeConnectToken(connectToken));
     return;
   }
+  const existing = resolveConnection(flags);
+  if (existing.apiToken) {
+    await saveBrowserConnectToken(
+      flags,
+      normalizeConnectToken(existing.apiToken),
+      existing.source,
+      existing.apiBaseUrl
+    );
+    return;
+  }
   output(flags, browserConnectInstructions(), printBrowserConnectInstructions);
 }
 
 async function saveBrowserConnectToken(flags, apiToken, source = 'browser-connect', selectedApiBaseUrl = '') {
   return saveBrowserConnectTokenWithOptions(flags, apiToken, source, selectedApiBaseUrl);
+}
+
+function logout(flags) {
+  if (
+    stringFlag(flags, 'token') ||
+    stringFlag(flags, 'api-token') ||
+    stringFlag(flags, 'connect-token') ||
+    process.env.JORIPSPACE_API_TOKEN ||
+    process.env.JORIPSPACE_CONNECT_TOKEN
+  ) {
+    const error = new Error(
+      '환경 변수나 명령행으로 제공한 토큰은 CLI에서 제거할 수 없습니다. 해당 토큰 설정을 해제한 뒤 logout을 실행하세요.'
+    );
+    error.code = 'logout_external_token';
+    throw error;
+  }
+  const workspaceDir = projectWorkspaceDir(flags);
+  const env = readProjectEnv(workspaceDir);
+  const legacyProject = readLegacyProjectSessionConnection(workspaceDir);
+  const legacyGlobal = readGlobalSession(flags);
+  const connection = resolveConnection(flags);
+  const apiUrl = normalizeCredentialApiUrl(connection.apiBaseUrl);
+  const stored = credentialStore.load(apiUrl, connection.accountId || env.JORIPSPACE_ACCOUNT_ID || '');
+  const token = connection.apiToken || stored?.apiToken;
+  const sameConnection = (candidate) =>
+    candidate?.apiToken === token && trimTrailingSlash(candidate.apiBaseUrl) === apiUrl;
+  const clearLegacyProject = token && sameConnection(legacyProject);
+  const globalToken = legacyGlobal?.api_token || legacyGlobal?.connect_token;
+  const clearLegacyGlobal =
+    token &&
+    globalToken === token &&
+    trimTrailingSlash(legacyGlobal.api_base_url || DEFAULT_API_URL) === apiUrl;
+  const legacyProjectPath = clearLegacyProject
+    ? managedProjectFilePath(workspaceDir, '.joripspace/agent-session.json')
+    : null;
+  if (clearLegacyGlobal) managedProjectFilePath(os.homedir(), '.joripspace/session.json');
+  managedProjectFilePath(workspaceDir, '.env.joripspace');
+  const accountId =
+    connection.accountId || env.JORIPSPACE_ACCOUNT_ID || (stored?.apiToken === token ? stored.accountId : '');
+  if (accountId) credentialStore.remove(apiUrl, accountId);
+  else if (!connection.apiToken) credentialStore.remove(apiUrl);
+  updateDotEnvFile(path.join(workspaceDir, '.env.joripspace'), {
+    JORIPSPACE_API_BASE_URL: apiUrl,
+    JORIPSPACE_API_TOKEN: null,
+    JORIPSPACE_CONNECT_TOKEN: null,
+    JORIPSPACE_CONNECTION_SOURCE: 'logged-out',
+    JORIPSPACE_ACCOUNT_ID: accountId || undefined,
+  });
+  if (legacyProjectPath) fs.unlinkSync(legacyProjectPath);
+  if (clearLegacyGlobal) scrubGlobalSessionToken();
+  output(flags, { status: 'logged_out' }, () =>
+    console.log('로그아웃 완료: 이 기기에 저장된 현재 연결을 삭제했습니다.')
+  );
 }
 
 async function saveBrowserConnectTokenWithOptions(
@@ -340,8 +411,9 @@ async function saveBrowserConnectTokenWithOptions(
   options = {}
 ) {
   const connection = selectedApiBaseUrl
-    ? { apiBaseUrl: trimTrailingSlash(selectedApiBaseUrl), apiToken, source }
+    ? { apiBaseUrl: normalizeCredentialApiUrl(selectedApiBaseUrl), apiToken, source }
     : connectionForExplicitToken(flags, apiToken);
+  connection.apiBaseUrl = normalizeCredentialApiUrl(connection.apiBaseUrl);
   const workspaceDir = projectWorkspaceDir(flags, { discover: false });
   managedProjectFilePath(workspaceDir, '.env.joripspace');
   managedProjectFilePath(workspaceDir, '.gitignore');
@@ -361,17 +433,19 @@ async function saveBrowserConnectTokenWithOptions(
       ? projects[0]
       : null;
   if (requestedProject && !selected) throw new Error(`project is not accessible: ${requestedProject}`);
+  credentialStore.save({ ...connection, accountId: body.account_id });
   updateDotEnvFile(path.join(workspaceDir, '.env.joripspace'), {
     JORIPSPACE_API_BASE_URL: connection.apiBaseUrl,
-    JORIPSPACE_API_TOKEN: apiToken,
+    JORIPSPACE_API_TOKEN: null,
+    JORIPSPACE_CONNECT_TOKEN: null,
     JORIPSPACE_ACCOUNT_ID: body.account_id,
-    JORIPSPACE_CONNECTION_SOURCE: source,
+    JORIPSPACE_CONNECTION_SOURCE: 'os-credential-store',
   });
   scrubGlobalSessionToken();
   if (options.output !== false) {
     output(flags, body, (value) => {
       console.log(`연결 완료: ${value.account_id}`);
-      console.log(`저장 위치: ${path.join(workspaceDir, '.env.joripspace')}`);
+      console.log('토큰 저장 위치: OS 보안 저장소 (다른 프로젝트 폴더에서도 재사용)');
       console.log('이 폴더에서 joripspace projects 또는 joripspace start 명령을 실행하세요.');
       console.log('회원정보와 API 토큰 관리는 웹 프로필에서만 가능합니다.');
     });
@@ -680,8 +754,14 @@ async function listDeployments(flags) {
       console.log(
         `${deployment.version}\t${deployment.deployment_id}\t${deployment.status}\trollback=${deployment.rollback_available}\t${deployment.created_at}`
       );
-      if (deployment.error_message) console.log(`${deployment.error_stage || 'unknown'} / ${deployment.error_code || 'unknown'}: ${deployment.error_message}`);
-      if (deployment.github) console.log(`GitHub: ${deployment.github.commit_sha} ${deployment.github.run_url} (${deployment.github.diagnostic_status || 'pending'})`);
+      if (deployment.error_message)
+        console.log(
+          `${deployment.error_stage || 'unknown'} / ${deployment.error_code || 'unknown'}: ${deployment.error_message}`
+        );
+      if (deployment.github)
+        console.log(
+          `GitHub: ${deployment.github.commit_sha} ${deployment.github.run_url} (${deployment.github.diagnostic_status || 'pending'})`
+        );
       if (deployment.error_details) console.log(deployment.error_details);
     }
   });
@@ -1007,6 +1087,7 @@ async function apiRequest(flags, apiPath, options) {
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
+      redirect: 'error',
     });
   } catch (error) {
     if (error?.name === 'AbortError') {
@@ -1019,7 +1100,12 @@ async function apiRequest(flags, apiPath, options) {
       timeoutError.code = 'request_timeout';
       throw timeoutError;
     }
-    const requestError = new Error(error instanceof Error ? error.message : String(error));
+    const requestError = new Error(
+      redactAuthError(error instanceof Error ? error.message : String(error), [
+        options.apiToken,
+        options.body?.code,
+      ])
+    );
     requestError.code = 'request_failed';
     throw requestError;
   } finally {
@@ -1029,11 +1115,13 @@ async function apiRequest(flags, apiPath, options) {
   const body = text ? parseJson(text) : {};
 
   if (!response.ok) {
-    const message = body?.error?.message || body?.message || text || `HTTP ${response.status}`;
-    const apiError = new Error(formatDeploymentFailure(message, body?.error?.details));
-    apiError.code = body?.error?.code || 'http_error';
+    const safe = redactAuthError(body, [options.apiToken, options.body?.code]);
+    const message =
+      safe?.error?.message || safe?.message || JSON.stringify(safe) || `HTTP ${response.status}`;
+    const apiError = new Error(formatDeploymentFailure(message, safe?.error?.details));
+    apiError.code = safe?.error?.code || 'http_error';
     apiError.status = response.status;
-    if (body?.error?.details !== undefined) apiError.details = body.error.details;
+    if (safe?.error?.details !== undefined) apiError.details = safe.error.details;
     throw apiError;
   }
 
@@ -1042,6 +1130,23 @@ async function apiRequest(flags, apiPath, options) {
   }
 
   return body;
+}
+
+function redactAuthError(value, secrets) {
+  if (typeof value === 'string') {
+    for (const secret of secrets.filter(Boolean)) value = value.split(secret).join('[REDACTED]');
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((item) => redactAuthError(item, secrets));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        redactAuthError(key, secrets),
+        redactAuthError(item, secrets),
+      ])
+    );
+  }
+  return value;
 }
 
 function isDeploymentRequest(apiPath) {
@@ -1077,6 +1182,7 @@ function normalizeConnectToken(value) {
   }
   if (
     token.startsWith(SESSION_COOKIE_PREFIX) ||
+    /[\u0000-\u0020\u007f]/.test(token) ||
     /^bearer\s+/i.test(token) ||
     ['dummy', 'test', 'token', 'undefined', 'null'].includes(token.toLowerCase())
   ) {
@@ -1260,33 +1366,44 @@ function resolveConnection(flags) {
       apiToken: projectEnv.JORIPSPACE_API_TOKEN,
       apiBaseUrl: trimTrailingSlash(projectEnv.JORIPSPACE_API_BASE_URL || DEFAULT_API_URL),
       source: 'project-env',
+      accountId: projectEnv.JORIPSPACE_ACCOUNT_ID,
       workspaceDir,
     };
   }
 
-  const legacyProjectConnection = readLegacyProjectSessionConnection(workspaceDir);
+  const managedOsConnection = ['os-credential-store', 'logged-out'].includes(
+    projectEnv.JORIPSPACE_CONNECTION_SOURCE
+  );
+  const legacyProjectConnection = managedOsConnection
+    ? null
+    : readLegacyProjectSessionConnection(workspaceDir);
   if (legacyProjectConnection) return legacyProjectConnection;
 
-  const legacy = readGlobalSession(flags);
+  const legacy = managedOsConnection ? null : readGlobalSession(flags);
   const legacyToken = legacy?.api_token || legacy?.connect_token;
   if (legacyToken) {
     return {
       apiToken: legacyToken,
       apiBaseUrl: trimTrailingSlash(legacy.api_base_url || DEFAULT_API_URL),
       source: 'legacy-global-session',
+      accountId: legacy.account?.account_id || legacy.account_id,
       workspaceDir,
     };
   }
 
+  const selectedApiBaseUrl = trimTrailingSlash(
+    projectEnv.JORIPSPACE_API_BASE_URL ||
+      stringFlag(flags, 'api-url') ||
+      process.env.JORIPSPACE_API_URL ||
+      process.env.JORIPSPACE_API_BASE_URL ||
+      DEFAULT_API_URL
+  );
+  const stored = credentialStore.load(selectedApiBaseUrl, projectEnv.JORIPSPACE_ACCOUNT_ID || '');
+  if (stored) return { ...stored, workspaceDir };
+
   return {
     apiToken: '',
-    apiBaseUrl: trimTrailingSlash(
-      stringFlag(flags, 'api-url') ||
-        process.env.JORIPSPACE_API_URL ||
-        process.env.JORIPSPACE_API_BASE_URL ||
-        projectEnv.JORIPSPACE_API_BASE_URL ||
-        DEFAULT_API_URL
-    ),
+    apiBaseUrl: selectedApiBaseUrl,
     source: 'none',
     workspaceDir,
   };
@@ -1338,20 +1455,27 @@ function scrubGlobalSessionToken() {
   return true;
 }
 
-function persistStartConnection(flags, connection) {
+function persistStartConnection(flags, connection, context = {}) {
   if (
-    !['legacy-global-session', 'legacy-project-session'].includes(connection?.source) ||
+    !['project-env', 'legacy-global-session', 'legacy-project-session', 'os-credential-store'].includes(
+      connection?.source
+    ) ||
     !connection.apiToken
   ) {
     return false;
   }
   const workspaceDir = path.resolve(stringFlag(flags, 'cwd') || projectWorkspaceDir(flags));
   ensureProjectEnvIgnored(workspaceDir);
+  const stored =
+    connection.source === 'os-credential-store'
+      ? connection
+      : credentialStore.save({ ...connection, accountId: context.accountId || connection.accountId });
   updateDotEnvFile(path.join(workspaceDir, '.env.joripspace'), {
-    JORIPSPACE_API_BASE_URL: connection.apiBaseUrl,
-    JORIPSPACE_API_TOKEN: connection.apiToken,
-    JORIPSPACE_ACCOUNT_ID: connection.accountId,
-    JORIPSPACE_CONNECTION_SOURCE: `${connection.source}-migration`,
+    JORIPSPACE_API_BASE_URL: stored.apiBaseUrl,
+    JORIPSPACE_API_TOKEN: null,
+    JORIPSPACE_CONNECT_TOKEN: null,
+    JORIPSPACE_ACCOUNT_ID: stored.accountId,
+    JORIPSPACE_CONNECTION_SOURCE: 'os-credential-store',
   });
   if (connection.source === 'legacy-global-session') scrubGlobalSessionToken();
   return true;
@@ -1422,7 +1546,7 @@ async function connectForStart(flags, context) {
     }
   }
 
-  const exchangeApiBaseUrl = unauthenticatedApiBaseUrl(flags);
+  const exchangeApiBaseUrl = normalizeCredentialApiUrl(unauthenticatedApiBaseUrl(flags));
   ensureProjectEnvIgnored(context.cwd);
   const exchange = await apiRequest(flags, '/v1/auth/connection-code/exchange', {
     method: 'POST',

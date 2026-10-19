@@ -27,6 +27,8 @@ Object.assign(env, {
   npm_config_prefix: join(home, 'npm-global'),
   npm_config_registry: 'https://registry.npmjs.org/', npm_config_audit: 'false', npm_config_fund: 'false',
   GIT_CONFIG_GLOBAL: join(home, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1',
+  NODE_OPTIONS: `--require="${join(root, 'test/fixtures/keyring.cjs').replaceAll('\\', '/')}"`,
+  JORIPSPACE_TEST_KEYRING_FILE: join(home, 'test-keyring.json'),
 });
 writeFileSync(env.npm_config_userconfig, '');
 mkdirSync(join(env.npm_config_prefix, 'bin'), { recursive: true });
@@ -99,7 +101,7 @@ try {
   assert.ok(existsSync(entry));
   if (process.platform !== 'win32') assert.ok((statSync(entry).mode & 0o111) !== 0);
   const dependencyTree = JSON.parse((await checked([npm, 'ls', '--all', '--json'], installed)).stdout);
-  assert.deepEqual(Object.keys(dependencyTree.dependencies['@joripspace/cli'].dependencies).sort(), ['fflate', 'jsonc-parser', 'smol-toml']);
+  assert.deepEqual(Object.keys(dependencyTree.dependencies['@joripspace/cli'].dependencies).sort(), ['@napi-rs/keyring', 'fflate', 'jsonc-parser', 'smol-toml']);
   report.checks.push('clean_external_install_without_build_or_parent_dependencies');
   const original = process.env.JORIPSPACE_BASELINE_CLI;
   const reference = original ? resolve(original) : join(root, 'bin', 'joripspace.js');
@@ -150,6 +152,7 @@ try {
   const credentialFile = join(project, '.env.joripspace');
   assert.ok(existsSync(credentialFile), 'Login must use caller cwd');
   assert.ok(!existsSync(join(installed, '.env.joripspace')));
+  assert.doesNotMatch(readFileSync(credentialFile, 'utf8'), /isolated-test-connection-token|JORIPSPACE_API_TOKEN/);
   assert.match(readFileSync(join(project, '.gitignore'), 'utf8'), /\.env\.joripspace/);
   mkdirSync(join(project, '.joripspace'));
   writeFileSync(join(project, '.joripspace/project'), 'demo\n');
@@ -179,6 +182,16 @@ try {
   assert.equal(error.error.code, 'connection_required');
   assert.ok(error.error.details.login_command.startsWith(`"${process.execPath}" "${entry}" login `));
   report.checks.push('noninteractive_stdin_eof_and_start_recovery_node_invocation_exit_2');
+
+  const beforeLogout = requests.length;
+  assert.equal(JSON.parse((await exec(['logout', '--json'])).stdout).status, 'logged_out');
+  const loggedOut = await run([entry, 'get', '--json']);
+  assert.equal(loggedOut.code, 1);
+  assert.equal(requests.length, beforeLogout, 'Logout and missing authentication must stay offline');
+  assert.deepEqual(JSON.parse(readFileSync(env.JORIPSPACE_TEST_KEYRING_FILE, 'utf8')), {});
+  await exec(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', url, '--json']);
+  await checked([entry, 'get', '--json']);
+  report.checks.push('packaged_logout_deletes_credentials_offline_and_login_restores_reuse');
 
   // Exercise cancellation while a local HTTP request is pending, without a browser or real credentials.
   server.removeAllListeners('request');

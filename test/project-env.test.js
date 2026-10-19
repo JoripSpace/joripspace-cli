@@ -11,6 +11,49 @@ const {
   updateDotEnvFile,
 } = require('../lib/project-env');
 
+test('removing credentials deletes all duplicate keys and preserves unrelated settings', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'joripspace-remove-token-'));
+  try {
+    const env = path.join(root, '.env.joripspace');
+    fs.writeFileSync(
+      env,
+      '# keep\nJORIPSPACE_API_TOKEN=first-secret\nCUSTOM=keep\nJORIPSPACE_API_TOKEN=second-secret\nJORIPSPACE_CONNECT_TOKEN=third-secret\n'
+    );
+    updateDotEnvFile(env, {
+      JORIPSPACE_API_TOKEN: null,
+      JORIPSPACE_CONNECT_TOKEN: null,
+      JORIPSPACE_ACCOUNT_ID: 'account',
+    });
+    assert.equal(fs.readFileSync(env, 'utf8'), '# keep\nCUSTOM=keep\nJORIPSPACE_ACCOUNT_ID=account\n');
+    assert.equal(
+      fs.readdirSync(root).some((name) => /tmp-|bak-/.test(name)),
+      false
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('failed atomic credential removal leaves the original in place without a plaintext backup', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'joripspace-remove-token-failure-'));
+  const originalRename = fs.renameSync;
+  try {
+    const env = path.join(root, '.env.joripspace');
+    fs.writeFileSync(env, 'JORIPSPACE_API_TOKEN=original-secret\n');
+    ensureProjectEnvIgnored(root);
+    fs.renameSync = (from, to) => {
+      if (to === env) throw new Error('simulated sharing violation');
+      return originalRename(from, to);
+    };
+    assert.throws(() => updateDotEnvFile(env, { JORIPSPACE_API_TOKEN: null }), /sharing violation/);
+    assert.equal(fs.readFileSync(env, 'utf8'), 'JORIPSPACE_API_TOKEN=original-secret\n');
+    assert.deepEqual(fs.readdirSync(root).sort(), ['.env.joripspace', '.gitignore']);
+  } finally {
+    fs.renameSync = originalRename;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function git(root, args) {
   const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', windowsHide: true });
   if (result.status !== 0) throw new Error(result.stderr || result.stdout || `git ${args.join(' ')} failed`);

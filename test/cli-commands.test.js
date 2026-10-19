@@ -18,12 +18,22 @@ function fixture() {
 
 function runCli(args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI, ...args], {
-      cwd: options.cwd,
-      env: { ...process.env, ...(options.env || {}) },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
+    const cwdIndex = args.indexOf('--cwd');
+    const testRoot = options.env?.HOME || options.cwd || (cwdIndex >= 0 ? args[cwdIndex + 1] : os.tmpdir());
+    const child = spawn(
+      process.execPath,
+      ['--require', path.join(__dirname, 'fixtures', 'keyring.cjs'), CLI, ...args],
+      {
+        cwd: options.cwd,
+        env: {
+          ...process.env,
+          JORIPSPACE_TEST_KEYRING_FILE: path.join(testRoot, 'test-keyring.json'),
+          ...(options.env || {}),
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      }
+    );
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8');
@@ -77,9 +87,22 @@ test('agent report submits platform diagnostics through the CLI-only API route',
   try {
     writeConnection(workspace, api.url);
     const result = await runCli([
-      'report', '--cwd', workspace, '--category', 'bug', '--summary', '빈 저장소 연결 실패',
-      '--details', 'start가 실패했습니다.', '--expected', '저장소 초기화', '--actual', 'clone 오류',
-      '--error-code', 'github_repository_sync_conflict', '--json',
+      'report',
+      '--cwd',
+      workspace,
+      '--category',
+      'bug',
+      '--summary',
+      '빈 저장소 연결 실패',
+      '--details',
+      'start가 실패했습니다.',
+      '--expected',
+      '저장소 초기화',
+      '--actual',
+      'clone 오류',
+      '--error-code',
+      'github_repository_sync_conflict',
+      '--json',
     ]);
     assert.equal(result.code, 0, result.stderr);
     assert.equal(JSON.parse(result.stdout).report_id, 'air_test');
@@ -106,8 +129,13 @@ test('realtime v2 management uses the project credential and encoded key cursor 
   try {
     writeConnection(workspace, api.url);
     for (const args of [
-      ['status'], ['activate'], ['rotate'], ['disable'],
-      ['keys', '--cursor', 'key+cursor/='], ['revoke-key', '--kid', 'key_1'], ['deletion'],
+      ['status'],
+      ['activate'],
+      ['rotate'],
+      ['disable'],
+      ['keys', '--cursor', 'key+cursor/='],
+      ['revoke-key', '--kid', 'key_1'],
+      ['deletion'],
     ]) {
       const result = await runCli(['realtime-v2', ...args, '--cwd', workspace, '--json']);
       assert.equal(result.code, 0, result.stderr);
@@ -116,11 +144,23 @@ test('realtime v2 management uses the project credential and encoded key cursor 
     }
     const base = '/v1/projects/demo/realtime-v2';
     assert.deepEqual(calls, [
-      ['GET', base], ['POST', base + '/activate'], ['POST', base + '/rotate'],
-      ['POST', base + '/disable'], ['GET', base + '/keys?after=key%2Bcursor%2F%3D'],
-      ['DELETE', base + '/keys/key_1'], ['GET', base + '/deletion'],
+      ['GET', base],
+      ['POST', base + '/activate'],
+      ['POST', base + '/rotate'],
+      ['POST', base + '/disable'],
+      ['GET', base + '/keys?after=key%2Bcursor%2F%3D'],
+      ['DELETE', base + '/keys/key_1'],
+      ['GET', base + '/deletion'],
     ]);
-    const invalid = await runCli(['realtime-v2', 'revoke-key', '--kid', '../other', '--cwd', workspace, '--json']);
+    const invalid = await runCli([
+      'realtime-v2',
+      'revoke-key',
+      '--kid',
+      '../other',
+      '--cwd',
+      workspace,
+      '--json',
+    ]);
     assert.notEqual(invalid.code, 0);
     assert.equal(calls.length, 7);
   } finally {
@@ -155,8 +195,15 @@ test('github prepare writes only the connection workflow for an empty remote', a
   });
   try {
     writeConnection(workspace, api.url);
-    fs.writeFileSync(path.join(workspace, 'worker.js'), 'export default { fetch() { return new Response("ok"); } };\n');
-    const init = require('node:child_process').spawnSync('git', ['-C', workspace, 'init', '--initial-branch', 'main'], { encoding: 'utf8' });
+    fs.writeFileSync(
+      path.join(workspace, 'worker.js'),
+      'export default { fetch() { return new Response("ok"); } };\n'
+    );
+    const init = require('node:child_process').spawnSync(
+      'git',
+      ['-C', workspace, 'init', '--initial-branch', 'main'],
+      { encoding: 'utf8' }
+    );
     assert.equal(init.status, 0, init.stderr);
     const remote = require('node:child_process').spawnSync(
       'git',
@@ -182,19 +229,43 @@ test('github prepare writes only the connection workflow for an empty remote', a
 });
 
 test('deployment history and detail expose the failing commit and source location', async () => {
-  const {root,workspace}=fixture();
-  const failure={deployment_id:'dep-failed',status:'failed',error_stage:'github_build',error_code:'github_failure',error_details:'src/app.ts:12:4 SyntaxError',github:{commit_sha:'a'.repeat(40),run_attempt:2,run_url:'https://github.com/owner/repo/actions/runs/123'}};
-  const calls=[];
-  const api=await apiServer(request=>{calls.push(request.url);return {body:request.url.includes('?')?{deployments:[failure]}:failure};});
+  const { root, workspace } = fixture();
+  const failure = {
+    deployment_id: 'dep-failed',
+    status: 'failed',
+    error_stage: 'github_build',
+    error_code: 'github_failure',
+    error_details: 'src/app.ts:12:4 SyntaxError',
+    github: {
+      commit_sha: 'a'.repeat(40),
+      run_attempt: 2,
+      run_url: 'https://github.com/owner/repo/actions/runs/123',
+    },
+  };
+  const calls = [];
+  const api = await apiServer((request) => {
+    calls.push(request.url);
+    return { body: request.url.includes('?') ? { deployments: [failure] } : failure };
+  });
   try {
-    writeConnection(workspace,api.url);
-    for(const args of [['deployments','--include-failure-details'],['deployment','get','--deployment','dep-failed']]) {
-      const result=await runCli([...args,'--cwd',workspace,'--json']);
-      assert.equal(result.code,0,result.stderr);
-      assert.match(result.stdout,/src\/app.ts:12:4/);assert.match(result.stdout,/aaaaaaaa/);
+    writeConnection(workspace, api.url);
+    for (const args of [
+      ['deployments', '--include-failure-details'],
+      ['deployment', 'get', '--deployment', 'dep-failed'],
+    ]) {
+      const result = await runCli([...args, '--cwd', workspace, '--json']);
+      assert.equal(result.code, 0, result.stderr);
+      assert.match(result.stdout, /src\/app.ts:12:4/);
+      assert.match(result.stdout, /aaaaaaaa/);
     }
-    assert.deepEqual(calls,['/v1/projects/demo/deployments?include_failure_details=true','/v1/projects/demo/deployments/dep-failed']);
-  } finally {await api.close();fs.rmSync(root,{recursive:true,force:true});}
+    assert.deepEqual(calls, [
+      '/v1/projects/demo/deployments?include_failure_details=true',
+      '/v1/projects/demo/deployments/dep-failed',
+    ]);
+  } finally {
+    await api.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 function escapeRegex(value) {
@@ -242,7 +313,12 @@ test('start uses the project environment connection as one record and secures it
   const primary = await apiServer((request) => {
     assert.equal(request.headers.authorization, 'Bearer project-token');
     if (request.url === '/v1/me/projects') {
-      return { body: { projects: [{ name: 'Demo', project_slug: 'demo', role: 'owner' }] } };
+      return {
+        body: {
+          account_id: 'account-project-env',
+          projects: [{ name: 'Demo', project_slug: 'demo', role: 'owner' }],
+        },
+      };
     }
     if (request.url === '/v1/projects/demo') {
       return { body: { project_slug: 'demo', status: 'active', deployment: { mode: 'direct' } } };
@@ -591,12 +667,41 @@ test('JSON HTTP errors preserve API code, status, and details on stderr only', a
 test('invalid connection-token placeholders are rejected before network access', async () => {
   const { root, workspace } = fixture();
   try {
-    for (const token of ['Bearer real-looking', 'dummy', 'test', 'token', 'undefined', 'null']) {
+    for (const token of [
+      'Bearer real-looking',
+      'dummy',
+      'test',
+      'token',
+      'undefined',
+      'null',
+      'secret\ninjected',
+      'secret\tinjected',
+    ]) {
       const result = await runCli(['login', '--connect-token', token, '--cwd', workspace, '--json']);
       assert.equal(result.code, 1, token);
       assert.equal(result.stdout, '');
       assert.equal(JSON.parse(result.stderr).error.code, 'invalid_arguments');
     }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('transport errors redact bearer credentials before reaching CLI output', async () => {
+  const { root, workspace } = fixture();
+  const preload = path.join(root, 'fetch-failure.cjs');
+  fs.writeFileSync(
+    preload,
+    'global.fetch = async (url, options) => { throw new Error(options.headers.Authorization); };\n'
+  );
+  try {
+    const result = await runCli(['me', '--token', 'synthetic-transport-secret', '--json'], {
+      cwd: workspace,
+      env: { NODE_OPTIONS: `--require="${preload.replaceAll('\\', '/')}"` },
+    });
+    assert.equal(result.code, 1);
+    assert.equal(JSON.parse(result.stderr).error.code, 'request_failed');
+    assert.doesNotMatch(result.stdout + result.stderr, /synthetic-transport-secret/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -714,7 +819,7 @@ test('connect_token-only global session migrates during link and is scrubbed', a
     });
     assert.equal(result.code, 0, result.stderr);
     const env = fs.readFileSync(path.join(workspace, '.env.joripspace'), 'utf8');
-    assert.match(env, /^JORIPSPACE_API_TOKEN=legacy-connect-only$/m);
+    assert.doesNotMatch(env, /legacy-connect-only|^JORIPSPACE_API_TOKEN=/m);
     assert.match(env, new RegExp(`^JORIPSPACE_API_BASE_URL=${escapeRegex(api.url)}$`, 'm'));
     const session = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
     assert.equal('connect_token' in session, false);
@@ -750,7 +855,7 @@ test('login code exchange and token verification keep one process-environment AP
     assert.deepEqual(calls, ['/v1/auth/connection-code/exchange', '/v1/me/projects']);
     const env = fs.readFileSync(path.join(workspace, '.env.joripspace'), 'utf8');
     assert.match(env, new RegExp(`^JORIPSPACE_API_BASE_URL=${escapeRegex(api.url)}$`, 'm'));
-    assert.match(env, /^JORIPSPACE_API_TOKEN=exchanged-project-token$/m);
+    assert.doesNotMatch(env, /exchanged-project-token|^JORIPSPACE_API_TOKEN=/m);
   } finally {
     await api.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -785,7 +890,10 @@ test('start selection and conflict states use a nonzero incomplete exit code', a
     assert.equal(connectionError.error.details.onboarding.schema_version, 1);
     assert.deepEqual(connectionError.error.details.onboarding.read_files, []);
     assert.match(connectionError.error.details.onboarding.instructions, /five-minute one-time code/);
-    assert.equal(connectionError.error.details.onboarding.commands.login.args.includes('CONNECTION_CODE'), true);
+    assert.equal(
+      connectionError.error.details.onboarding.commands.login.args.includes('CONNECTION_CODE'),
+      true
+    );
 
     fs.writeFileSync(path.join(workspace, '.joripspace', 'project'), 'other\n');
     const conflict = await runCli(
@@ -873,7 +981,7 @@ test('start exchanges a connection code and continues in the same process withou
     assert.equal(body.next_action, 'continue-development');
     assert.equal(calls.filter((call) => call.url === '/v1/me/projects').length, 2);
     const env = fs.readFileSync(path.join(workspace, '.env.joripspace'), 'utf8');
-    assert.match(env, /^JORIPSPACE_API_TOKEN=same-process-secret-token$/m);
+    assert.doesNotMatch(env, /same-process-secret-token|^JORIPSPACE_API_TOKEN=/m);
     assert.match(env, new RegExp(`^JORIPSPACE_API_BASE_URL=${escapeRegex(api.url)}$`, 'm'));
   } finally {
     await api.close();
@@ -886,7 +994,7 @@ test('start migrates a source-bound legacy project session only after project va
   const api = await apiServer((request) => {
     assert.equal(request.headers.authorization, 'Bearer legacy-project-token');
     if (request.url === '/v1/me/projects') {
-      return { body: { projects: [{ project_slug: 'demo', role: 'owner' }] } };
+      return { body: { account_id: 'account-legacy', projects: [{ project_slug: 'demo', role: 'owner' }] } };
     }
     if (request.url === '/v1/projects/demo') {
       return { body: { project_slug: 'demo', status: 'active', deployment: { mode: 'direct' } } };
@@ -923,7 +1031,7 @@ test('start migrates a source-bound legacy project session only after project va
     assert.equal(result.code, 0, result.stderr);
     assert.equal(fs.existsSync(path.join(workspace, '.joripspace', 'agent-session.json')), false);
     const env = fs.readFileSync(path.join(workspace, '.env.joripspace'), 'utf8');
-    assert.match(env, /^JORIPSPACE_API_TOKEN=legacy-project-token$/m);
+    assert.doesNotMatch(env, /legacy-project-token|^JORIPSPACE_API_TOKEN=/m);
     assert.match(env, new RegExp(`^JORIPSPACE_API_BASE_URL=${escapeRegex(api.url)}$`, 'm'));
   } finally {
     await api.close();
@@ -1032,12 +1140,16 @@ test('start restores an existing project into its reserved empty GitHub reposito
     if (request.url === '/v1/projects/demo/deployments?limit=1') {
       return {
         body: {
-          deployments: [{ deployment_id: 'deployment-existing', status: 'success', download_available: true }],
+          deployments: [
+            { deployment_id: 'deployment-existing', status: 'success', download_available: true },
+          ],
         },
       };
     }
     if (request.url === '/v1/projects/demo/deployments/deployment-existing/source') {
-      return { body: { deployment_id: 'deployment-existing', files: { 'worker.js': 'export default {};\n' } } };
+      return {
+        body: { deployment_id: 'deployment-existing', files: { 'worker.js': 'export default {};\n' } },
+      };
     }
     return { status: 404, body: { message: `unhandled ${request.url}` } };
   });
