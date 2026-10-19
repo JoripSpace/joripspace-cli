@@ -33,13 +33,13 @@ Object.assign(env, {
 writeFileSync(env.npm_config_userconfig, '');
 mkdirSync(join(env.npm_config_prefix, 'bin'), { recursive: true });
 mkdirSync(join(env.npm_config_prefix, 'lib'), { recursive: true });
-function run(args, cwd = project) {
+function run(args, cwd = project, input = '') {
   return new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     let stdout = '', stderr = '';
     child.stdout.setEncoding('utf8').on('data', value => { stdout += value; });
     child.stderr.setEncoding('utf8').on('data', value => { stderr += value; });
-    child.stdin.end();
+    child.stdin.end(input);
     const timer = setTimeout(() => child.kill(), 120_000);
     child.once('error', reject);
     child.once('close', (code, signal) => { clearTimeout(timer); resolveResult({ code, signal, stdout, stderr }); });
@@ -154,6 +154,13 @@ try {
   assert.ok(!existsSync(join(installed, '.env.joripspace')));
   assert.doesNotMatch(readFileSync(credentialFile, 'utf8'), /isolated-test-connection-token|JORIPSPACE_API_TOKEN/);
   assert.match(readFileSync(join(project, '.gitignore'), 'utf8'), /\.env\.joripspace/);
+  const secretValue = 'isolated-provider-secret\nwith-multiple-lines';
+  const secretSet = await run([entry, 'secret', 'update', '--project', 'demo', '--name', 'PROVIDER_KEY', '--value-stdin', '--json'], project, secretValue);
+  assert.equal(secretSet.code, 0, secretSet.stderr);
+  assert.ok(!(secretSet.stdout + secretSet.stderr).includes(secretValue));
+  assert.equal(JSON.parse(secretSet.stdout).secret_management_url, 'https://joripspace.com/projects/demo/?tab=secrets');
+  assert.ok(requests.some(request => request.url === '/v1/projects/demo/secrets' && JSON.parse(request.body).value === secretValue));
+  report.checks.push('packaged_secret_replacement_exact_stdin_without_value_output_and_project_page');
   mkdirSync(join(project, '.joripspace'));
   writeFileSync(join(project, '.joripspace/project'), 'demo\n');
   const credentialBefore = readFileSync(credentialFile, 'utf8');

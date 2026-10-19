@@ -94,6 +94,22 @@ checks apply. Creation does not link or change local project source; use `start`
 
 ## Commands and compatibility
 
+### Project secrets
+
+Use `joripspace secret generate --name SESSION_SECRET --json` to generate and store an internal random value without
+seeing it. Existing active values are preserved. Use `joripspace secret set --name API_KEY --value-stdin --json`
+(alias: `secret update`) to create or replace a value received from an external server, provider, or another system.
+Send the exact value through process stdin; never put it in command arguments, chat, logs, source, or temporary project
+files. Input must be 1-5120 UTF-8 bytes. Whitespace and newlines are preserved. Values are never returned.
+
+`start` onboarding and Secret command responses include the selected project's `secret_management_url`. Agents should
+show it as a clickable link after creation/replacement and whenever the user needs to enter a value, explaining the
+exact key name and purpose. The user can enter a value on that page and click **Register or replace**. Confirm the name,
+status, and change time with `joripspace secret list --json`, then verify the relevant integration. Secret deletion
+remains a web operation. Registration and replacement still require project access and valid, non-reserved key names.
+
+### Other commands
+
 Use `--help`, `deploy --help`, `deploy-template --help`, or `install-template --help` for the supported commands and options. Existing functionality includes authentication, project inspection, deployment, templates, checkpoints, databases, storage, realtime v2, secrets, cron jobs, domains, mail, usage, and events. Operations restricted to the web interface remain restricted.
 
 The CLI preserves existing result fields and exit codes `0`, `1`, and `2`, with the additive `onboarding` object described above. With `--json`, successful results go to stdout and errors go to stderr. User-facing explanations should follow the user's language; the shared agent guide is English.
