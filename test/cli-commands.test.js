@@ -538,7 +538,7 @@ test('ordinary requests use 25 seconds while deployments and project provisionin
     preload,
     `const originalSetTimeout = global.setTimeout;\n` +
       `global.setTimeout = (callback, milliseconds, ...args) => { global.__requestTimeout = milliseconds; return originalSetTimeout(callback, 60000, ...args); };\n` +
-      `global.fetch = async () => Response.json({ observed_timeout: global.__requestTimeout, deployment_id: 'dep-timeout', status: 'success' });\n`
+      `global.fetch = async () => { const observed_timeout = global.__requestTimeout; delete global.__requestTimeout; return Response.json({ observed_timeout, deployment_id: 'dep-timeout', status: 'success' }); };\n`
   );
   const env = {
     JORIPSPACE_API_TOKEN: 'timeout-token',

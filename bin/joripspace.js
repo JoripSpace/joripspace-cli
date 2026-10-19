@@ -106,7 +106,13 @@ const githubCommand = createGithubCommands({
 });
 
 const DEFAULT_API_URL = 'https://api.joripspace.com';
-const createProject = createProjectCommand({ apiRequest, output, requireApiToken, stringFlag });
+const createProject = createProjectCommand({
+  apiRequest,
+  output,
+  requireApiToken,
+  resolveConnection,
+  stringFlag,
+});
 const GENERAL_REQUEST_TIMEOUT_MS = 25_000;
 const SESSION_COOKIE_PREFIX = 'joripspace_session=';
 function loadTemplatesPackage() {

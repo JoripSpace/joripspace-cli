@@ -9,8 +9,10 @@ function fixture(response = { project_id: 'my-demo', project_slug: 'my-demo' }) 
   const command = createProjectCommand({
     stringFlag: (flags, name) => (typeof flags[name] === 'string' ? flags[name] : ''),
     requireApiToken: () => 'synthetic-create-token',
+    resolveConnection: () => ({ apiToken: 'synthetic-create-token', apiBaseUrl: 'https://create.test' }),
     apiRequest: async (...args) => {
       calls.push(args);
+      if (args[1] === '/v1/me/projects') return { account_id: 'synthetic-account', projects: [] };
       if (response instanceof Error) throw response;
       return response;
     },
@@ -54,7 +56,8 @@ test('machine project creation requires each explicit agreement and returns Engl
       }
       return true;
     });
-    assert.deepEqual(f.calls, []);
+    assert.equal(f.calls.length, 1);
+    assert.equal(f.calls[0][1], '/v1/me/projects');
     assert.deepEqual(f.outputs, []);
   }
 });
@@ -69,8 +72,8 @@ test('accepted creation sends only the web creation fields using existing authen
     account: 'ignored',
     yes: true,
   });
-  assert.equal(f.calls.length, 1);
-  const [, url, options] = f.calls[0];
+  assert.equal(f.calls.length, 2);
+  const [, url, options] = f.calls[1];
   assert.equal(url, '/v1/projects');
   assert.equal(options.method, 'POST');
   assert.equal(options.apiToken, 'synthetic-create-token');
@@ -100,8 +103,8 @@ test('creation preserves server rejection and never retries or silently changes 
     code: 'project_name_taken',
     status: 409,
   });
-  assert.equal(f.calls.length, 1);
-  assert.equal(f.calls[0][2].body.name, 'my-demo');
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.calls[1][2].body.name, 'my-demo');
   assert.deepEqual(f.outputs, []);
 });
 
@@ -112,5 +115,5 @@ test('unknown creation state instructs the agent to list projects before retryin
     assert.match(caught.details.next_action, /list-projects.*before-retrying/);
     return true;
   });
-  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls.length, 2);
 });

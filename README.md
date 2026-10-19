@@ -62,8 +62,9 @@ Without `--cwd`, the CLI uses your current working directory and searches parent
 ## Optional global installation
 
 To create a new Free project, run `joripspace create --name my-app --json` first. It returns all three required agreements
-in English with the Korean web originals. Agents must present them faithfully in the user's language and obtain
-explicit consent before rerunning with `--agree-noncommercial --agree-billing --agree-retention --json`. Interactive
+in English with the Korean web originals. Login is verified with the server before any agreements are shown;
+missing or revoked credentials stop creation. Agents must present the agreements faithfully in the user's language
+and obtain explicit consent before rerunning with `--agree-noncommercial --agree-billing --agree-retention --json`. Interactive
 terminals ask each agreement separately. `--yes` cannot replace consent. Web/server name restrictions and uniqueness
 checks apply. Creation does not link or change local project source; use `start` separately when requested.
 

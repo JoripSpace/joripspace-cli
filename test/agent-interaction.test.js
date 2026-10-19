@@ -8,7 +8,7 @@ const test = require('node:test');
 
 const CLI = path.resolve(__dirname, '../bin/joripspace.js');
 
-async function fixture(t) {
+async function fixture(t, { rejectAuth = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'joripspace-interaction-'));
   const workspace = path.join(root, 'workspace');
   fs.mkdirSync(workspace);
@@ -36,6 +36,11 @@ async function fixture(t) {
     let body = '';
     for await (const chunk of request) body += chunk;
     calls.push({ url: request.url, body });
+    if (rejectAuth && request.url === '/v1/me/projects') {
+      response.writeHead(401, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: { code: 'account_auth_required', message: 'Login required' } }));
+      return;
+    }
     const result =
       request.url === '/v1/auth/connection-code/exchange'
         ? { connect_token: 'synthetic-interaction-token' }
@@ -245,6 +250,7 @@ test('every command entry point returns JSON or a JSON error without input in a 
 
 test('Free creation returns translatable agreements to a TTY agent and creates only after explicit flags', async (t) => {
   const f = await fixture(t);
+  assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'])).code, 0);
   for (const extra of [[], ['--yes'], ['--agree-noncommercial', '--agree-billing']]) {
     const result = await f.run(['create', '--name', 'my-demo', ...extra], { tty: true });
     assert.equal(result.code, 2);
@@ -254,8 +260,7 @@ test('Free creation returns translatable agreements to a TTY agent and creates o
     assert.equal(details.language, 'en');
     assert.match(details.agent_instruction, /user's language/);
   }
-  assert.deepEqual(f.calls, []);
-  assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'])).code, 0);
+  assert.equal(f.calls.filter((call) => call.url === '/v1/projects').length, 0);
   const metadata = fs.readFileSync(path.join(f.workspace, '.env.joripspace'), 'utf8');
   const result = await f.run(
     ['create', '--name', ' MY-DEMO ', '--agree-noncommercial', '--agree-billing', '--agree-retention'],
@@ -294,10 +299,49 @@ test('terminal Free creation asks all three English agreements and proceeds only
 
 test('declined, empty, or cancelled terminal agreements never send a create request', async (t) => {
   const f = await fixture(t);
+  assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'])).code, 0);
   for (const agreements of [['no'], [''], ['yes', 'no'], ['yes', 'yes', 'no'], [null]]) {
     const result = await f.run(['create', '--name', 'my-demo'], { tty: true, json: false, agreements });
     assert.notEqual(result.code, 0);
     assert.notEqual(result.stderr, '');
   }
+  assert.equal(f.calls.filter((call) => call.url === '/v1/projects').length, 0);
+});
+
+test('logged-out creation stops before agreements in human and agent terminals', async (t) => {
+  const f = await fixture(t);
+  for (const tty of [false, true])
+    for (const json of [false, true]) {
+      for (const accepted of [[], ['--agree-noncommercial', '--agree-billing', '--agree-retention']]) {
+        const result = await f.run(['create', '--name', 'my-demo', ...accepted], { tty, json });
+        assert.equal(result.code, 2, result.stderr);
+        assert.equal(result.stdout, '');
+        assert.doesNotMatch(result.stderr, /Do you agree/);
+        if (json) {
+          const error = JSON.parse(result.stderr).error;
+          assert.equal(error.code, 'connection_required');
+          assert.deepEqual(error.details.login_args, ['login', '--json']);
+        } else assert.match(result.stderr, /joripspace login/);
+      }
+    }
   assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.browserCalls(), []);
+});
+
+test('revoked credentials stop creation before agreements and return login guidance', async (t) => {
+  const f = await fixture(t, { rejectAuth: true });
+  for (const json of [false, true]) {
+    const result = await f.run(['create', '--name', 'my-demo', '--token', 'synthetic-revoked-token'], {
+      tty: true,
+      json,
+    });
+    assert.equal(result.code, 2, result.stderr);
+    assert.equal(result.stdout, '');
+    if (json) assert.equal(JSON.parse(result.stderr).error.code, 'connection_required');
+  }
+  assert.deepEqual(
+    f.calls.map((call) => call.url),
+    ['/v1/me/projects', '/v1/me/projects']
+  );
+  assert.deepEqual(f.browserCalls(), []);
 });
