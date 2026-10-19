@@ -15,7 +15,7 @@ const JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES = [
   '.joripspace/local-backups/',
 ];
 const JORIPSPACE_ONBOARDING_GITIGNORE_REMOVALS = ['.joripspace/agent-session.json'];
-const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-10-19T23:49:54+09:00';
+const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-10-20T00:10:15+09:00';
 const JORIPSPACE_WORKFLOW_POLICY = Object.freeze({
   target: 'joripspace',
   guide_required: true,

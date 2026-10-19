@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const { message } = require('../lib/locale');
+const { redactAuthError } = require('../lib/auth-redaction');
 
 const fs = require('node:fs');
 const os = require('node:os');
@@ -1175,6 +1176,7 @@ async function apiRequest(flags, apiPath, options) {
     const requestError = new Error(
       redactAuthError(error instanceof Error ? error.message : String(error), [
         options.apiToken,
+        options.adminToken,
         options.body?.code,
       ])
     );
@@ -1187,7 +1189,7 @@ async function apiRequest(flags, apiPath, options) {
   const body = text ? parseJson(text) : {};
 
   if (!response.ok) {
-    const safe = redactAuthError(body, [options.apiToken, options.body?.code]);
+    const safe = redactAuthError(body, [options.apiToken, options.adminToken, options.body?.code]);
     const message =
       safe?.error?.message || safe?.message || JSON.stringify(safe) || `HTTP ${response.status}`;
     const apiError = new Error(formatDeploymentFailure(message, safe?.error?.details));
@@ -1202,23 +1204,6 @@ async function apiRequest(flags, apiPath, options) {
   }
 
   return body;
-}
-
-function redactAuthError(value, secrets) {
-  if (typeof value === 'string') {
-    for (const secret of secrets.filter(Boolean)) value = value.split(secret).join('[REDACTED]');
-    return value;
-  }
-  if (Array.isArray(value)) return value.map((item) => redactAuthError(item, secrets));
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        redactAuthError(key, secrets),
-        redactAuthError(item, secrets),
-      ])
-    );
-  }
-  return value;
 }
 
 function isDeploymentRequest(apiPath) {
