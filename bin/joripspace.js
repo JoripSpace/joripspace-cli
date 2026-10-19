@@ -395,12 +395,12 @@ function logout(flags) {
   const connection = resolveConnection(flags);
   const apiUrl = normalizeCredentialApiUrl(connection.apiBaseUrl);
   let stored = null;
-  if (env.JORIPSPACE_CONNECTION_SOURCE !== 'logged-out-project-env') {
-    try {
-      stored = credentialStore.load(apiUrl, connection.accountId || env.JORIPSPACE_ACCOUNT_ID || '');
-    } catch (error) {
-      if (error.code !== 'credential_store_unavailable' || connection.source === 'os-credential-store') throw error;
-    }
+  let osCredentialStatus = 'not_found';
+  try {
+    stored = credentialStore.load(apiUrl, connection.accountId || env.JORIPSPACE_ACCOUNT_ID || '');
+  } catch (error) {
+    if (error.code !== 'credential_store_unavailable' || connection.source === 'os-credential-store') throw error;
+    osCredentialStatus = 'unavailable';
   }
   const token = connection.apiToken || stored?.apiToken;
   const sameConnection = (candidate) =>
@@ -418,20 +418,25 @@ function logout(flags) {
   managedProjectFilePath(workspaceDir, '.env.joripspace');
   const accountId =
     connection.accountId || env.JORIPSPACE_ACCOUNT_ID || (stored?.apiToken === token ? stored.accountId : '');
-  if (stored && (!token || stored.apiToken === token)) credentialStore.remove(apiUrl, stored.accountId);
+  if (stored) {
+    credentialStore.remove(apiUrl, stored.accountId);
+    osCredentialStatus = 'removed';
+  }
   updateDotEnvFile(path.join(workspaceDir, '.env.joripspace'), {
     JORIPSPACE_API_BASE_URL: apiUrl,
     JORIPSPACE_API_TOKEN: null,
     JORIPSPACE_CONNECT_TOKEN: null,
-    JORIPSPACE_CONNECTION_SOURCE: env.JORIPSPACE_CONNECTION_SOURCE === 'project-env-fallback' ||
-      env.JORIPSPACE_CONNECTION_SOURCE === 'logged-out-project-env' ? 'logged-out-project-env' : 'logged-out',
+    JORIPSPACE_CONNECTION_SOURCE: 'logged-out',
     JORIPSPACE_ACCOUNT_ID: accountId || undefined,
   });
   if (legacyProjectPath) fs.unlinkSync(legacyProjectPath);
   if (clearLegacyGlobal) scrubGlobalSessionToken();
-  output(flags, { status: 'logged_out' }, () =>
+  output(flags, { status: 'logged_out', project_credentials_cleared: true, os_credential_status: osCredentialStatus }, () =>
     console.log(
-      message(
+      osCredentialStatus === 'unavailable' ? message(
+        'Logged out: saved project credentials were removed. The OS credential store is unavailable and could not be checked.',
+        '로그아웃 완료: 프로젝트에 저장된 인증 정보를 삭제했습니다. OS 보안 저장소는 사용할 수 없어 확인하지 못했습니다.'
+      ) : message(
         'Logged out: the current saved connection was removed.',
         '로그아웃 완료: 저장된 현재 연결을 삭제했습니다.'
       )
@@ -1463,7 +1468,7 @@ function resolveConnection(flags) {
     };
   }
 
-  const managedOsConnection = ['os-credential-store', 'project-env-fallback', 'logged-out', 'logged-out-project-env'].includes(
+  const managedOsConnection = ['os-credential-store', 'project-env-fallback', 'logged-out'].includes(
     projectEnv.JORIPSPACE_CONNECTION_SOURCE
   );
   const legacyProjectConnection = managedOsConnection
@@ -1491,12 +1496,10 @@ function resolveConnection(flags) {
       DEFAULT_API_URL
   );
   let stored = null;
-  if (projectEnv.JORIPSPACE_CONNECTION_SOURCE !== 'logged-out-project-env') {
-    try {
-      stored = credentialStore.load(selectedApiBaseUrl, projectEnv.JORIPSPACE_ACCOUNT_ID || '');
-    } catch (error) {
-      if (error.code !== 'credential_store_unavailable' || projectEnv.JORIPSPACE_CONNECTION_SOURCE === 'os-credential-store') throw error;
-    }
+  try {
+    stored = credentialStore.load(selectedApiBaseUrl, projectEnv.JORIPSPACE_ACCOUNT_ID || '');
+  } catch (error) {
+    if (error.code !== 'credential_store_unavailable' || projectEnv.JORIPSPACE_CONNECTION_SOURCE === 'os-credential-store') throw error;
   }
   if (stored) return { ...stored, workspaceDir };
 

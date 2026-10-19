@@ -205,11 +205,12 @@ for (const failure of ['unavailable', 'read']) {
       const callsBeforeLogout = f.calls.length;
       const logout = await f.run(['logout'], f.a, unavailable);
       assert.equal(logout.code, 0, logout.stderr);
+      assert.equal(JSON.parse(logout.stdout).os_credential_status, 'unavailable');
       assert.equal(f.calls.length, callsBeforeLogout);
       contents = fs.readFileSync(envPath, 'utf8');
       assert.doesNotMatch(contents, /TOKEN|synthetic-secret-token|obsolete-secret/);
       assert.match(contents, /^CUSTOM=keep$/m);
-      assert.match(contents, /^JORIPSPACE_CONNECTION_SOURCE=logged-out-project-env$/m);
+      assert.match(contents, /^JORIPSPACE_CONNECTION_SOURCE=logged-out$/m);
       assert.notEqual((await f.run(['me'], f.a, unavailable)).code, 0);
       assert.equal(f.calls.length, callsBeforeLogout);
       assert.equal(JSON.parse((await f.run(['login'], f.a, unavailable)).stdout).status, 'browser_connection_required');
@@ -257,17 +258,25 @@ test('file fallback refuses Git-tracked credentials before exchanging a connecti
   }
 });
 
-test('file fallback logout stays logged out even when an older OS login is later available', async () => {
+test('logout clears both file and OS tokens for the same account, then OS login is reused across folders', async () => {
   const f = await fixture();
   try {
     assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
     const unavailable = { JORIPSPACE_TEST_KEYRING_FAILURE: 'unavailable' };
     assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a, unavailable)).code, 0);
-    assert.equal((await f.run(['logout'], f.a, unavailable)).code, 0);
+    fs.appendFileSync(path.join(f.a, '.env.joripspace'), 'JORIPSPACE_API_TOKEN=other-file-token\n');
     const count = f.calls.length;
+    const logout = await f.run(['logout']);
+    assert.equal(logout.code, 0, logout.stderr);
+    assert.equal(JSON.parse(logout.stdout).os_credential_status, 'removed');
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.root, 'test-keyring.json'), 'utf8')), {});
+    assert.doesNotMatch(fs.readFileSync(path.join(f.a, '.env.joripspace'), 'utf8'), /TOKEN|other-file-token|synthetic-secret-token/);
+    assert.equal(f.calls.length, count);
     assert.notEqual((await f.run(['me'])).code, 0);
     assert.equal(f.calls.length, count);
     assert.equal((await f.run(['logout'])).code, 0);
+    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.b)).code, 0);
+    assert.equal((await f.run(['me'], f.a)).code, 0);
     assert.equal((await f.run(['me', '--api-url', f.url], f.b)).code, 0);
   } finally {
     await f.close();
