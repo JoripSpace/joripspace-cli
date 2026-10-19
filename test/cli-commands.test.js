@@ -640,7 +640,7 @@ test('web-only commands fail before making an API request and emit JSON errors',
     assert.equal(result.stdout, '');
     const error = JSON.parse(result.stderr).error;
     assert.equal(error.code, 'invalid_arguments');
-    assert.match(error.message, /웹 화면/);
+    assert.match(error.message, /web UI|웹 화면/);
     assert.equal(calls, 0);
   } finally {
     await api.close();

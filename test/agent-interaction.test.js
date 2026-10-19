@@ -23,6 +23,10 @@ async function fixture(t, { rejectAuth = false } = {}) {
     const tty = process.env.JORIPSPACE_TEST_TTY === '1';
     Object.defineProperty(process.stdin, 'isTTY', { value: tty });
     Object.defineProperty(process.stdout, 'isTTY', { value: tty });
+    const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+    Intl.DateTimeFormat.prototype.resolvedOptions = function () {
+      return { ...resolvedOptions.call(this), locale: process.env.JORIPSPACE_TEST_LOCALE };
+    };
     require('node:child_process').spawn = (file, args) => {
       fs.appendFileSync(process.env.JORIPSPACE_TEST_OPENER_LOG, JSON.stringify({ file, args }) + '\\n');
       const child = new EventEmitter();
@@ -62,7 +66,7 @@ async function fixture(t, { rejectAuth = false } = {}) {
     fs.rmSync(root, { recursive: true, force: true });
   });
   const url = `http://127.0.0.1:${server.address().port}`;
-  function run(args, { tty = false, json = true, answer, eof = false, agreements } = {}) {
+  function run(args, { tty = false, json = true, answer, eof = false, agreements, locale = 'en-US' } = {}) {
     const env = Object.fromEntries(
       Object.entries(process.env).filter(
         ([key]) => !/^(JORIPSPACE_|NODE_OPTIONS$|NODE_PATH$|FORCE_COLOR$)/i.test(key)
@@ -73,6 +77,7 @@ async function fixture(t, { rejectAuth = false } = {}) {
       USERPROFILE: path.join(root, 'home'),
       JORIPSPACE_TEST_KEYRING_FILE: path.join(root, 'keyring.json'),
       JORIPSPACE_TEST_TTY: tty ? '1' : '0',
+      JORIPSPACE_TEST_LOCALE: locale,
       JORIPSPACE_TEST_OPENER_LOG: openerLog,
       FORCE_COLOR: '0',
     });
@@ -104,11 +109,11 @@ async function fixture(t, { rejectAuth = false } = {}) {
       }, 8000);
       child.stdout.on('data', (chunk) => {
         stdout += chunk.toString();
-        if (!answered && stdout.includes('연결 코드: ') && (answer !== undefined || eof)) {
+        if (!answered && /(?:Connection code|연결 코드): /.test(stdout) && (answer !== undefined || eof)) {
           answered = true;
           child.stdin.end(eof ? undefined : `${answer}\n`);
         }
-        const count = (stdout.match(/Do you agree\? \[y\/N\]: /g) || []).length;
+        const count = (stdout.match(/(?:Do you agree\?|동의하십니까\?) \[y\/N\]: /g) || []).length;
         if (agreements && count > agreementIndex && agreementIndex < agreements.length) {
           const value = agreements[agreementIndex++];
           if (value === null || agreementIndex === agreements.length) {
@@ -153,13 +158,13 @@ test('terminal login accepts a connection code and reuses its saved login withou
   const f = await fixture(t);
   const first = await f.run(['login'], { tty: true, json: false, answer: 'abcd-efgh-jkmn-pqrs' });
   assert.equal(first.code, 0, first.stderr);
-  assert.match(first.stdout, /연결 코드: /);
+  assert.match(first.stdout, /Connection code: /);
   assert.doesNotMatch(first.stdout + first.stderr, /synthetic-interaction-token/);
   assert.equal(JSON.parse(f.calls[0].body).code, 'ABCD-EFGH-JKMN-PQRS');
   assert.equal(f.browserCalls().length, 1);
   const again = await f.run(['login'], { tty: true, json: false });
   assert.equal(again.code, 0, again.stderr);
-  assert.doesNotMatch(again.stdout, /연결 코드: /);
+  assert.doesNotMatch(again.stdout, /Connection code: /);
   assert.equal(f.browserCalls().length, 1);
   assert.equal(f.calls.filter((call) => call.url.endsWith('/exchange')).length, 1);
   assert.equal((await f.run(['me'], { tty: true })).code, 0);
@@ -171,7 +176,7 @@ test('terminal start still accepts a connection code and continues into project 
   const f = await fixture(t);
   const result = await f.run(['start', 'demo'], { tty: true, json: false, answer: 'abcd-efgh-jkmn-pqrs' });
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /연결 코드: /);
+  assert.match(result.stdout, /Connection code: /);
   assert.match(result.stdout, /Started project: demo/);
   assert.equal(f.browserCalls().length, 1);
   assert.equal((await f.run(['start', 'demo'])).code, 0);
@@ -210,7 +215,7 @@ test('piped login and start finish with guidance even without JSON or stdin EOF'
   assert.match(login.stdout, /login --code/);
   const start = await f.run(['start', 'demo'], { json: false });
   assert.equal(start.code, 2);
-  assert.doesNotMatch(login.stdout + start.stdout, /연결 코드: /);
+  assert.doesNotMatch(login.stdout + start.stdout, /Connection code: /);
   assert.deepEqual(f.calls, []);
   assert.deepEqual(f.browserCalls(), []);
 });
@@ -344,4 +349,43 @@ test('revoked credentials stop creation before agreements and return login guida
     ['/v1/me/projects', '/v1/me/projects']
   );
   assert.deepEqual(f.browserCalls(), []);
+});
+
+test('OS locale controls login guidance and prompts, while unsupported locales use English', async (t) => {
+  const f = await fixture(t);
+  for (const [locale, korean] of [
+    ['ko-KR', true],
+    ['en-US', false],
+    ['ja-JP', false],
+  ]) {
+    const result = await f.run(['create', '--name', 'my-demo'], { tty: true, json: false, locale });
+    assert.equal(result.code, 2);
+    assert.equal(result.stdout, '');
+    assert.equal(/[가-힣]/.test(result.stderr), korean);
+    assert.match(result.stderr, /joripspace login/);
+  }
+  assert.deepEqual(f.calls, []);
+  const login = await f.run(['login'], {
+    tty: true,
+    json: false,
+    locale: 'ko-KR',
+    answer: 'abcd-efgh-jkmn-pqrs',
+  });
+  assert.equal(login.code, 0, login.stderr);
+  assert.match(login.stdout, /연결 코드: /);
+  const guidance = await f.run(['create', '--name', 'my-demo'], { tty: true, locale: 'ko-KR' });
+  assert.equal(guidance.code, 2);
+  const details = JSON.parse(guidance.stderr).error.details;
+  assert.equal(details.language, 'en');
+  assert.ok(details.agreements.every((item) => item.text && item.original_text));
+  const created = await f.run(['create', '--name', 'my-demo'], {
+    tty: true,
+    json: false,
+    locale: 'ko-KR',
+    agreements: ['예', '네', '동의'],
+  });
+  assert.equal(created.code, 0, created.stderr);
+  assert.equal((created.stdout.match(/동의하십니까\?/g) || []).length, 3);
+  assert.match(created.stdout, /개인 및 비상업적/);
+  assert.match(created.stdout, /프로젝트 생성 완료/);
 });

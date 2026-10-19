@@ -61,6 +61,10 @@ Without `--cwd`, the CLI uses your current working directory and searches parent
 
 ## Optional global installation
 
+CLI notices and prompts follow the OS default locale: Korean for `ko`, English otherwise, including
+unsupported or unavailable locales. JSON field names and error codes stay unchanged. Agreement payloads
+keep English text and the Korean originals so agents can explain them in the user's conversation language.
+
 To create a new Free project, run `joripspace create --name my-app --json` first. It returns all three required agreements
 in English with the Korean web originals. Login is verified with the server before any agreements are shown;
 missing or revoked credentials stop creation. Agents must present the agreements faithfully in the user's language

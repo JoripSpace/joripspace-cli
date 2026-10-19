@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { message } = require('../lib/locale');
 
 const fs = require('node:fs');
 const os = require('node:os');
@@ -175,13 +176,13 @@ async function main() {
       await listMyProjects(flags);
       return;
     case 'billing-projects':
-      webOnlyCommand('결제 프로젝트');
+      webOnlyCommand(message('Billing projects', '결제 프로젝트'));
       return;
     case 'billing-usage':
-      webOnlyCommand('결제 사용량');
+      webOnlyCommand(message('Billing usage', '결제 사용량'));
       return;
     case 'invoices':
-      webOnlyCommand('청구서');
+      webOnlyCommand(message('Invoices', '청구서'));
       return;
     case 'link':
       await linkProject(flags);
@@ -271,7 +272,7 @@ async function main() {
       await listRuntimeEvents(flags);
       return;
     case 'usage':
-      webOnlyCommand('일일 사용량 상세');
+      webOnlyCommand(message('Daily usage details', '일일 사용량 상세'));
       return;
     case 'usage-summary':
       await getUsageSummary(flags);
@@ -280,7 +281,7 @@ async function main() {
       await getUsageBreakdown(flags);
       return;
     case 'tokens':
-      webOnlyCommand('API 토큰 관리');
+      webOnlyCommand(message('API token administration', 'API 토큰 관리'));
       return;
     case 'crons':
       await remoteCommands.listCrons(flags);
@@ -295,10 +296,10 @@ async function main() {
       await remoteCommands.mail(rest, flags);
       return;
     case 'webhooks':
-      webOnlyCommand('웹훅 관리');
+      webOnlyCommand(message('Webhook administration', '웹훅 관리'));
       return;
     case 'token':
-      webOnlyCommand('API 토큰 관리');
+      webOnlyCommand(message('API token administration', 'API 토큰 관리'));
       return;
     case 'secret':
       await remoteCommands.secrets(rest, flags);
@@ -310,10 +311,10 @@ async function main() {
       await remoteCommands.domains(rest, flags);
       return;
     case 'webhook':
-      webOnlyCommand('웹훅 관리');
+      webOnlyCommand(message('Webhook administration', '웹훅 관리'));
       return;
     case 'delete':
-      webOnlyCommand('프로젝트 삭제');
+      webOnlyCommand(message('Project deletion', '프로젝트 삭제'));
       return;
     default:
       throw new Error(`Unknown command: ${command}`);
@@ -372,7 +373,10 @@ function logout(flags) {
     process.env.JORIPSPACE_CONNECT_TOKEN
   ) {
     const error = new Error(
-      '환경 변수나 명령행으로 제공한 토큰은 CLI에서 제거할 수 없습니다. 해당 토큰 설정을 해제한 뒤 logout을 실행하세요.'
+      message(
+        'The CLI cannot remove tokens supplied through environment variables or command-line arguments. Unset those tokens, then run logout.',
+        '환경 변수나 명령행으로 제공한 토큰은 CLI에서 제거할 수 없습니다. 해당 토큰 설정을 해제한 뒤 logout을 실행하세요.'
+      )
     );
     error.code = 'logout_external_token';
     throw error;
@@ -412,7 +416,12 @@ function logout(flags) {
   if (legacyProjectPath) fs.unlinkSync(legacyProjectPath);
   if (clearLegacyGlobal) scrubGlobalSessionToken();
   output(flags, { status: 'logged_out' }, () =>
-    console.log('로그아웃 완료: 이 기기에 저장된 현재 연결을 삭제했습니다.')
+    console.log(
+      message(
+        'Logged out: the current saved connection was removed from this device.',
+        '로그아웃 완료: 이 기기에 저장된 현재 연결을 삭제했습니다.'
+      )
+    )
   );
 }
 
@@ -457,10 +466,25 @@ async function saveBrowserConnectTokenWithOptions(
   scrubGlobalSessionToken();
   if (options.output !== false) {
     output(flags, body, (value) => {
-      console.log(`연결 완료: ${value.account_id}`);
-      console.log('토큰 저장 위치: OS 보안 저장소 (다른 프로젝트 폴더에서도 재사용)');
-      console.log('이 폴더에서 joripspace projects 또는 joripspace start 명령을 실행하세요.');
-      console.log('회원정보와 API 토큰 관리는 웹 프로필에서만 가능합니다.');
+      console.log(message(`Connected: ${value.account_id}`, `연결 완료: ${value.account_id}`));
+      console.log(
+        message(
+          'Token storage: OS credential store (reused across project folders)',
+          '토큰 저장 위치: OS 보안 저장소 (다른 프로젝트 폴더에서도 재사용)'
+        )
+      );
+      console.log(
+        message(
+          'Run joripspace projects or joripspace start in this folder.',
+          '이 폴더에서 joripspace projects 또는 joripspace start 명령을 실행하세요.'
+        )
+      );
+      console.log(
+        message(
+          'Manage account details and API tokens in your web profile.',
+          '회원정보와 API 토큰 관리는 웹 프로필에서만 가능합니다.'
+        )
+      );
     });
   }
   return body;
@@ -495,7 +519,10 @@ async function listMyProjects(flags) {
 
 function webOnlyCommand(label) {
   throw new Error(
-    `${label} 기능은 웹 화면에서만 사용할 수 있습니다. CLI는 개발, DB/스토리지 작업, 서버 배포, 사용량, 로그 조회용입니다.`
+    message(
+      `${label} is available only in the web UI. Use the CLI for development, DB/storage operations, server deployment, usage, and logs.`,
+      `${label} 기능은 웹 화면에서만 사용할 수 있습니다. CLI는 개발, DB/스토리지 작업, 서버 배포, 사용량, 로그 조회용입니다.`
+    )
   );
 }
 
@@ -747,7 +774,8 @@ async function deployCode(flags, options = {}) {
 }
 
 function printDeploymentWarnings(warnings) {
-  for (const warning of warnings || []) console.warn(`경고: ${warning.message}`);
+  for (const warning of warnings || [])
+    console.warn(message(`Warning: ${warning.message}`, `경고: ${warning.message}`));
 }
 
 async function listDeployments(flags) {
@@ -1052,16 +1080,29 @@ function printWebhookDelivery(delivery) {
 
 async function listTokens(flags) {
   throw new Error(
-    'API 토큰은 웹 프로필에서 발급하거나 사용 중지해주세요. CLI 토큰은 프로젝트 관리 전용입니다.'
+    message(
+      'Issue or disable API tokens in your web profile. CLI tokens are for project management.',
+      'API 토큰은 웹 프로필에서 발급하거나 사용 중지해주세요. CLI 토큰은 프로젝트 관리 전용입니다.'
+    )
   );
 }
 
 async function createToken(flags) {
-  throw new Error('API 토큰은 웹 프로필에서 발급해주세요. CLI 토큰으로 새 토큰을 만들 수 없습니다.');
+  throw new Error(
+    message(
+      'Issue API tokens in your web profile. A CLI token cannot create new tokens.',
+      'API 토큰은 웹 프로필에서 발급해주세요. CLI 토큰으로 새 토큰을 만들 수 없습니다.'
+    )
+  );
 }
 
 async function revokeToken(flags) {
-  throw new Error('API 토큰은 웹 프로필에서 사용 중지해주세요. CLI 토큰으로 토큰을 폐기할 수 없습니다.');
+  throw new Error(
+    message(
+      'Disable API tokens in your web profile. A CLI token cannot revoke tokens.',
+      'API 토큰은 웹 프로필에서 사용 중지해주세요. CLI 토큰으로 토큰을 폐기할 수 없습니다.'
+    )
+  );
 }
 
 async function deleteProject(flags) {
@@ -1177,17 +1218,34 @@ function browserConnectInstructions() {
   return {
     status: 'browser_connection_required',
     connect_url: 'https://joripspace.com/connect/',
-    message:
-      '이메일 주소는 필요 없습니다. 브라우저에서 JoripSpace에 로그인한 뒤 연결을 승인하고 5분 일회용 연결 코드를 복사하세요.',
-    save_command: 'joripspace login --code "복사한_연결_코드"',
+    message: message(
+      'No email address is required. Sign in to JoripSpace in your browser, approve the connection, and copy the one-time code, valid for five minutes.',
+      '이메일 주소는 필요 없습니다. 브라우저에서 JoripSpace에 로그인한 뒤 연결을 승인하고 5분 일회용 연결 코드를 복사하세요.'
+    ),
+    save_command: 'joripspace login --code "CONNECTION_CODE"',
   };
 }
 
 function printBrowserConnectInstructions(value) {
-  console.log('브라우저에서 JoripSpace 연결을 승인하세요.');
-  console.log('이메일 주소 입력이나 메일 확인은 필요 없습니다.');
-  console.log(`연결 페이지: ${value.connect_url}`);
-  console.log('승인 후 화면에 표시되는 5분 일회용 연결 코드를 아래 명령으로 교환하세요.');
+  console.log(
+    message(
+      'Approve the JoripSpace connection in your browser.',
+      '브라우저에서 JoripSpace 연결을 승인하세요.'
+    )
+  );
+  console.log(
+    message(
+      'No email address or email verification is required.',
+      '이메일 주소 입력이나 메일 확인은 필요 없습니다.'
+    )
+  );
+  console.log(message(`Connection page: ${value.connect_url}`, `연결 페이지: ${value.connect_url}`));
+  console.log(
+    message(
+      'After approval, exchange the displayed five-minute one-time code using this command.',
+      '승인 후 화면에 표시되는 5분 일회용 연결 코드를 아래 명령으로 교환하세요.'
+    )
+  );
   console.log(value.save_command);
 }
 
@@ -1203,7 +1261,10 @@ function normalizeConnectToken(value) {
     ['dummy', 'test', 'token', 'undefined', 'null'].includes(token.toLowerCase())
   ) {
     throw new Error(
-      '브라우저 쿠키, Bearer 문자열, 빈 자리표시자, 테스트 값은 CLI 연결 토큰으로 사용할 수 없습니다. /connect/에서 새 연결 토큰을 발급하세요.'
+      message(
+        'Browser cookies, Bearer strings, empty placeholders, and test values cannot be used as CLI connection tokens. Get a new connection token at /connect/.',
+        '브라우저 쿠키, Bearer 문자열, 빈 자리표시자, 테스트 값은 CLI 연결 토큰으로 사용할 수 없습니다. /connect/에서 새 연결 토큰을 발급하세요.'
+      )
     );
   }
   return token;
@@ -1214,7 +1275,12 @@ function normalizeConnectionCode(value) {
     .replace(/[\s-]+/g, '')
     .toUpperCase();
   if (!/^[0-9A-HJKMNP-TV-Z]{16}$/.test(normalized)) {
-    throw new Error('연결 코드는 화면에 표시된 16자리 영숫자 값이어야 합니다.');
+    throw new Error(
+      message(
+        'The connection code must be the 16-character alphanumeric value shown on the connection page.',
+        '연결 코드는 화면에 표시된 16자리 영숫자 값이어야 합니다.'
+      )
+    );
   }
   return normalized.match(/.{1,4}/g).join('-');
 }
@@ -1571,18 +1637,37 @@ async function connectForStart(flags, context) {
 async function promptConnectionCode(flags) {
   if (flags.json || !process.stdin.isTTY || !process.stdout.isTTY) return null;
   const instructions = browserConnectInstructions();
-  console.log('브라우저에서 JoripSpace 연결을 승인하세요.');
-  console.log(`연결 페이지: ${instructions.connect_url}`);
-  console.log('승인 후 표시된 5분 일회용 연결 코드를 이 터미널에 붙여 넣으세요.');
+  console.log(
+    message(
+      'Approve the JoripSpace connection in your browser.',
+      '브라우저에서 JoripSpace 연결을 승인하세요.'
+    )
+  );
+  console.log(
+    message(`Connection page: ${instructions.connect_url}`, `연결 페이지: ${instructions.connect_url}`)
+  );
+  console.log(
+    message(
+      'After approval, paste the displayed five-minute one-time code into this terminal.',
+      '승인 후 표시된 5분 일회용 연결 코드를 이 터미널에 붙여 넣으세요.'
+    )
+  );
   openExternalUrl(instructions.connect_url);
   const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
   const cancellation = new AbortController();
   prompt.once('close', () => cancellation.abort());
   try {
-    return await prompt.question('연결 코드: ', { signal: cancellation.signal });
+    return await prompt.question(message('Connection code: ', '연결 코드: '), {
+      signal: cancellation.signal,
+    });
   } catch (error) {
     if (error?.code !== 'ABORT_ERR') throw error;
-    const cancelled = new Error('연결 코드 입력이 취소되었습니다. login을 다시 실행하세요.');
+    const cancelled = new Error(
+      message(
+        'Connection code entry was cancelled. Run login again.',
+        '연결 코드 입력이 취소되었습니다. login을 다시 실행하세요.'
+      )
+    );
     cancelled.code = 'connection_required';
     cancelled.exitCode = 2;
     throw cancelled;
