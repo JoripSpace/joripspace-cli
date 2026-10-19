@@ -101,7 +101,7 @@ try {
   assert.ok(existsSync(entry));
   if (process.platform !== 'win32') assert.ok((statSync(entry).mode & 0o111) !== 0);
   const dependencyTree = JSON.parse((await checked([npm, 'ls', '--all', '--json'], installed)).stdout);
-  assert.deepEqual(Object.keys(dependencyTree.dependencies['@joripspace/cli'].dependencies).sort(), ['@napi-rs/keyring', 'fflate', 'jsonc-parser', 'smol-toml']);
+  assert.deepEqual(Object.keys(dependencyTree.dependencies['@joripspace/cli'].dependencies).sort(), ['@napi-rs/keyring', 'fflate', 'ignore', 'jsonc-parser', 'smol-toml']);
   report.checks.push('clean_external_install_without_build_or_parent_dependencies');
   const original = process.env.JORIPSPACE_BASELINE_CLI;
   const reference = original ? resolve(original) : join(root, 'bin', 'joripspace.js');

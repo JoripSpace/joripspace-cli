@@ -41,7 +41,8 @@
   "dependencies": {
     "@napi-rs/keyring": "2.1.2",
     "fflate": "^0.8.2",
+    "ignore": "7.0.12",
     "jsonc-parser": "^3.3.1",
-    "smol-toml": "^1.7.2"
+    "smol-toml": "^1.9.1"
   }
 }

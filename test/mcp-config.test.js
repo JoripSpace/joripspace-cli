@@ -182,7 +182,7 @@ test('all known user-scope adapters scrub legacy execution and auth overrides wh
     assert.match(codexSource, /unrelated Codex comment/);
     assert.equal(codexSource.includes(sentinel), false);
     assert.equal(codex.mcp_servers.other.url, 'https://other.example');
-    assert.deepEqual(codex.mcp_servers.joripspace, {
+    assert.deepEqual(JSON.parse(JSON.stringify(codex.mcp_servers.joripspace)), {
       url: 'https://api.joripspace.com/mcp',
       auth: 'oauth',
       enabled: true,
@@ -305,6 +305,39 @@ test('Codex merge preserves valid multiline TOML containing a table-looking stri
     assert.match(parsed.note, /\[mcp_servers\.joripspace\]/);
     assert.equal(parsed.mcp_servers.other.url, 'https://other.example');
     assert.equal(parsed.mcp_servers.joripspace.auth, 'oauth');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Codex merge preserves nested tables, dates, and special keys with null-prototype TOML tables', () => {
+  const { root, cleanup } = fixture();
+  try {
+    const filePath = path.join(root, 'config.toml');
+    const source = [
+      'created = 1979-05-27T07:32:00Z',
+      'local_date = 1979-05-27',
+      'settings = [{ nested = { enabled = true } }]',
+      '',
+      '["__proto__"]',
+      'custom = "preserved"',
+      '',
+      '[mcp_servers.other]',
+      'url = "https://other.example"',
+      '',
+    ].join('\n');
+    const before = parseToml(source);
+    fs.writeFileSync(filePath, source);
+    assert.equal(mergeCodexConfig(filePath).status, 'configured');
+    const next = fs.readFileSync(filePath, 'utf8');
+    const after = parseToml(next);
+    assert.ok(next.startsWith(source));
+    for (const key of ['created', 'local_date', 'settings', '__proto__']) {
+      assert.deepEqual(after[key], before[key], key);
+    }
+    assert.equal(Object.hasOwn(Object.prototype, 'custom'), false);
+    assert.equal(mergeCodexConfig(filePath).registration, 'unchanged');
+    assert.equal(fs.readFileSync(filePath, 'utf8'), next);
   } finally {
     cleanup();
   }
