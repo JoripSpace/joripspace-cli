@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const test = require('node:test');
 
 async function fixture(handler) {
@@ -163,10 +163,112 @@ for (const failure of ['write', 'readback']) {
 test('a locked OS store stops before a network request and exposes no native diagnostics', async () => {
   const f = await fixture();
   try {
+    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
+    f.calls.length = 0;
     const result = await f.run(['me', '--api-url', f.url], f.a, { JORIPSPACE_TEST_KEYRING_FAILURE: 'read' });
     assert.equal(JSON.parse(result.stderr).error.code, 'credential_store_unavailable');
     assert.equal(f.calls.length, 0);
     assert.doesNotMatch(result.stdout + result.stderr, /native-secret/);
+    const reconnect = await f.run(['login'], f.a, { JORIPSPACE_TEST_KEYRING_FAILURE: 'read' });
+    assert.equal(reconnect.code, 0, reconnect.stderr);
+    assert.equal(JSON.parse(reconnect.stdout).status, 'browser_connection_required');
+    assert.equal(f.calls.length, 0);
+  } finally {
+    await f.close();
+  }
+});
+
+for (const failure of ['unavailable', 'read']) {
+  test(`${failure}: login falls back to an ignored project file and logout removes its tokens offline`, async () => {
+    const f = await fixture();
+    const unavailable = { JORIPSPACE_TEST_KEYRING_FAILURE: failure };
+    try {
+      const envPath = path.join(f.a, '.env.joripspace');
+      fs.writeFileSync(envPath, 'CUSTOM=keep\n');
+      const instructions = await f.run(['login', '--api-url', f.url], f.a, unavailable);
+      assert.equal(instructions.code, 0, instructions.stderr);
+      assert.equal(JSON.parse(instructions.stdout).status, 'browser_connection_required');
+      assert.equal(f.calls.length, 0);
+      const login = await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a, unavailable);
+      assert.equal(login.code, 0, login.stderr);
+      assert.equal(JSON.parse(login.stdout).credential_storage, 'project-env-fallback');
+      assert.doesNotMatch(login.stdout + login.stderr, /synthetic-secret-token|native-secret/);
+      let contents = fs.readFileSync(envPath, 'utf8');
+      assert.match(contents, /^JORIPSPACE_CONNECTION_SOURCE=project-env-fallback$/m);
+      assert.equal(contents.match(/^JORIPSPACE_API_TOKEN=/gm).length, 1);
+      assert.match(fs.readFileSync(path.join(f.a, '.gitignore'), 'utf8'), /\.env\.joripspace/);
+      if (process.platform !== 'win32') assert.equal(fs.statSync(envPath).mode & 0o777, 0o600);
+      assert.equal((await f.run(['me', '--api-url', 'https://must-not-use.invalid'], f.a, unavailable)).code, 0);
+      assert.equal((await f.run(['start', 'demo'], f.a, unavailable)).code, 0);
+      assert.equal(f.calls.filter(call => call.url.includes('/exchange')).length, 1);
+      fs.appendFileSync(envPath, 'JORIPSPACE_CONNECT_TOKEN=obsolete-secret\nJORIPSPACE_API_TOKEN=synthetic-secret-token\n');
+      const callsBeforeLogout = f.calls.length;
+      const logout = await f.run(['logout'], f.a, unavailable);
+      assert.equal(logout.code, 0, logout.stderr);
+      assert.equal(f.calls.length, callsBeforeLogout);
+      contents = fs.readFileSync(envPath, 'utf8');
+      assert.doesNotMatch(contents, /TOKEN|synthetic-secret-token|obsolete-secret/);
+      assert.match(contents, /^CUSTOM=keep$/m);
+      assert.match(contents, /^JORIPSPACE_CONNECTION_SOURCE=logged-out-project-env$/m);
+      assert.notEqual((await f.run(['me'], f.a, unavailable)).code, 0);
+      assert.equal(f.calls.length, callsBeforeLogout);
+      assert.equal(JSON.parse((await f.run(['login'], f.a, unavailable)).stdout).status, 'browser_connection_required');
+      assert.equal(fs.readdirSync(f.a).some(name => /tmp-|bak-/.test(name)), false);
+    } finally {
+      await f.close();
+    }
+  });
+}
+
+test('fallback login migrates back to the OS store when it becomes available', async () => {
+  const f = await fixture();
+  try {
+    const first = await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a,
+      { JORIPSPACE_TEST_KEYRING_FAILURE: 'unavailable' });
+    assert.equal(first.code, 0, first.stderr);
+    const recovered = await f.run(['login']);
+    assert.equal(recovered.code, 0, recovered.stderr);
+    assert.equal(JSON.parse(recovered.stdout).credential_storage, 'os-credential-store');
+    assert.doesNotMatch(fs.readFileSync(path.join(f.a, '.env.joripspace'), 'utf8'), /TOKEN|synthetic-secret-token/);
+    assert.equal((await f.run(['me', '--api-url', f.url], f.b)).code, 0);
+    assert.equal(f.calls.filter(call => call.url.includes('/exchange')).length, 1);
+  } finally {
+    await f.close();
+  }
+});
+
+test('file fallback refuses Git-tracked credentials before exchanging a connection code', async () => {
+  const f = await fixture();
+  try {
+    const envPath = path.join(f.a, '.env.joripspace');
+    fs.writeFileSync(envPath, 'CUSTOM=keep\n');
+    for (const args of [['init'], ['add', '.env.joripspace']]) {
+      const result = spawnSync('git', args, { cwd: f.a, encoding: 'utf8', windowsHide: true });
+      assert.equal(result.status, 0, result.stderr);
+    }
+    const result = await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a,
+      { JORIPSPACE_TEST_KEYRING_FAILURE: 'unavailable' });
+    assert.notEqual(result.code, 0);
+    assert.equal(JSON.parse(result.stderr).error.code, 'project_env_tracked');
+    assert.equal(f.calls.length, 0);
+    assert.equal(fs.readFileSync(envPath, 'utf8'), 'CUSTOM=keep\n');
+  } finally {
+    await f.close();
+  }
+});
+
+test('file fallback logout stays logged out even when an older OS login is later available', async () => {
+  const f = await fixture();
+  try {
+    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
+    const unavailable = { JORIPSPACE_TEST_KEYRING_FAILURE: 'unavailable' };
+    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a, unavailable)).code, 0);
+    assert.equal((await f.run(['logout'], f.a, unavailable)).code, 0);
+    const count = f.calls.length;
+    assert.notEqual((await f.run(['me'])).code, 0);
+    assert.equal(f.calls.length, count);
+    assert.equal((await f.run(['logout'])).code, 0);
+    assert.equal((await f.run(['me', '--api-url', f.url], f.b)).code, 0);
   } finally {
     await f.close();
   }

@@ -200,6 +200,25 @@ try {
   await checked([entry, 'get', '--json']);
   report.checks.push('packaged_logout_deletes_credentials_offline_and_login_restores_reuse');
 
+  env.JORIPSPACE_TEST_KEYRING_FAILURE = 'unavailable';
+  try {
+    const fallback = await exec(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', url, '--json']);
+    assert.equal(JSON.parse(fallback.stdout).credential_storage, 'project-env-fallback');
+    assert.doesNotMatch(fallback.stdout + fallback.stderr, /isolated-test-connection-token/);
+    assert.match(readFileSync(credentialFile, 'utf8'), /^JORIPSPACE_API_TOKEN=isolated-test-connection-token$/m);
+    await checked([entry, 'get', '--json']);
+    const requestCount = requests.length;
+    await exec(['logout', '--json']);
+    assert.equal(requests.length, requestCount, 'File fallback logout must work offline');
+    assert.doesNotMatch(readFileSync(credentialFile, 'utf8'), /TOKEN|isolated-test-connection-token/);
+  } finally {
+    delete env.JORIPSPACE_TEST_KEYRING_FAILURE;
+  }
+  assert.equal((await run([entry, 'get', '--json'])).code, 1, 'File logout must not resurrect the older OS login');
+  await exec(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', url, '--json']);
+  assert.doesNotMatch(readFileSync(credentialFile, 'utf8'), /TOKEN|isolated-test-connection-token/);
+  report.checks.push('packaged_os_unavailable_file_fallback_offline_logout_and_secure_reconnection');
+
   // Exercise cancellation while a local HTTP request is pending, without a browser or real credentials.
   server.removeAllListeners('request');
   let signalChild;

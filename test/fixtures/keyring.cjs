@@ -10,6 +10,7 @@ function values() {
 }
 class Entry {
   constructor(service, user, options) {
+    if (process.env.JORIPSPACE_TEST_KEYRING_FAILURE === 'unavailable') throw new Error('native-secret-must-not-leak');
     if (options?.linux?.store !== 'secret-service') throw new Error('Secret Service must be explicit');
     this.key = `${service}:${user}`;
   }

@@ -36,6 +36,7 @@ const {
 const { ensureProjectEnvIgnored, readProjectEnv, updateDotEnvFile } = require('../lib/project-env');
 const { createCredentialStore, normalizeCredentialApiUrl } = require('../lib/credential-store');
 const credentialStore = createCredentialStore();
+const { persistProjectConnection } = require('../lib/connection-persistence');
 const { createStartProjectCommand } = require('../lib/start-command');
 const { legacyCredentialSessionConnection, readProjectMarker } = require('../lib/start');
 const { buildTemplateDeployRequest, listTemplates } = loadTemplatesPackage();
@@ -342,8 +343,14 @@ async function login(flags) {
     await saveBrowserConnectToken(flags, normalizeConnectToken(connectToken));
     return;
   }
-  const existing = resolveConnection(flags);
-  if (existing.apiToken) {
+  let existing;
+  try {
+    existing = resolveConnection(flags);
+  } catch (error) {
+    if (error.code !== 'credential_store_unavailable') throw error;
+    // Reauthentication can obtain a new token even when an older OS login is inaccessible.
+  }
+  if (existing?.apiToken) {
     await saveBrowserConnectToken(
       flags,
       normalizeConnectToken(existing.apiToken),
@@ -387,7 +394,14 @@ function logout(flags) {
   const legacyGlobal = readGlobalSession(flags);
   const connection = resolveConnection(flags);
   const apiUrl = normalizeCredentialApiUrl(connection.apiBaseUrl);
-  const stored = credentialStore.load(apiUrl, connection.accountId || env.JORIPSPACE_ACCOUNT_ID || '');
+  let stored = null;
+  if (env.JORIPSPACE_CONNECTION_SOURCE !== 'logged-out-project-env') {
+    try {
+      stored = credentialStore.load(apiUrl, connection.accountId || env.JORIPSPACE_ACCOUNT_ID || '');
+    } catch (error) {
+      if (error.code !== 'credential_store_unavailable' || connection.source === 'os-credential-store') throw error;
+    }
+  }
   const token = connection.apiToken || stored?.apiToken;
   const sameConnection = (candidate) =>
     candidate?.apiToken === token && trimTrailingSlash(candidate.apiBaseUrl) === apiUrl;
@@ -404,13 +418,13 @@ function logout(flags) {
   managedProjectFilePath(workspaceDir, '.env.joripspace');
   const accountId =
     connection.accountId || env.JORIPSPACE_ACCOUNT_ID || (stored?.apiToken === token ? stored.accountId : '');
-  if (accountId) credentialStore.remove(apiUrl, accountId);
-  else if (!connection.apiToken) credentialStore.remove(apiUrl);
+  if (stored && (!token || stored.apiToken === token)) credentialStore.remove(apiUrl, stored.accountId);
   updateDotEnvFile(path.join(workspaceDir, '.env.joripspace'), {
     JORIPSPACE_API_BASE_URL: apiUrl,
     JORIPSPACE_API_TOKEN: null,
     JORIPSPACE_CONNECT_TOKEN: null,
-    JORIPSPACE_CONNECTION_SOURCE: 'logged-out',
+    JORIPSPACE_CONNECTION_SOURCE: env.JORIPSPACE_CONNECTION_SOURCE === 'project-env-fallback' ||
+      env.JORIPSPACE_CONNECTION_SOURCE === 'logged-out-project-env' ? 'logged-out-project-env' : 'logged-out',
     JORIPSPACE_ACCOUNT_ID: accountId || undefined,
   });
   if (legacyProjectPath) fs.unlinkSync(legacyProjectPath);
@@ -418,8 +432,8 @@ function logout(flags) {
   output(flags, { status: 'logged_out' }, () =>
     console.log(
       message(
-        'Logged out: the current saved connection was removed from this device.',
-        '로그아웃 완료: 이 기기에 저장된 현재 연결을 삭제했습니다.'
+        'Logged out: the current saved connection was removed.',
+        '로그아웃 완료: 저장된 현재 연결을 삭제했습니다.'
       )
     )
   );
@@ -455,20 +469,16 @@ async function saveBrowserConnectTokenWithOptions(
       ? projects[0]
       : null;
   if (requestedProject && !selected) throw new Error(`project is not accessible: ${requestedProject}`);
-  credentialStore.save({ ...connection, accountId: body.account_id });
-  updateDotEnvFile(path.join(workspaceDir, '.env.joripspace'), {
-    JORIPSPACE_API_BASE_URL: connection.apiBaseUrl,
-    JORIPSPACE_API_TOKEN: null,
-    JORIPSPACE_CONNECT_TOKEN: null,
-    JORIPSPACE_ACCOUNT_ID: body.account_id,
-    JORIPSPACE_CONNECTION_SOURCE: 'os-credential-store',
-  });
+  const storage = persistProjectConnection(credentialStore, workspaceDir, { ...connection, accountId: body.account_id });
   scrubGlobalSessionToken();
   if (options.output !== false) {
-    output(flags, body, (value) => {
+    output(flags, { ...body, credential_storage: storage }, (value) => {
       console.log(message(`Connected: ${value.account_id}`, `연결 완료: ${value.account_id}`));
       console.log(
-        message(
+        storage === 'project-env-fallback' ? message(
+          'Token storage: .env.joripspace (OS credential store unavailable; reused in this project)',
+          '토큰 저장 위치: .env.joripspace (OS 보안 저장소를 사용할 수 없어 이 프로젝트에서 재사용)'
+        ) : message(
           'Token storage: OS credential store (reused across project folders)',
           '토큰 저장 위치: OS 보안 저장소 (다른 프로젝트 폴더에서도 재사용)'
         )
@@ -1453,7 +1463,7 @@ function resolveConnection(flags) {
     };
   }
 
-  const managedOsConnection = ['os-credential-store', 'logged-out'].includes(
+  const managedOsConnection = ['os-credential-store', 'project-env-fallback', 'logged-out', 'logged-out-project-env'].includes(
     projectEnv.JORIPSPACE_CONNECTION_SOURCE
   );
   const legacyProjectConnection = managedOsConnection
@@ -1480,7 +1490,14 @@ function resolveConnection(flags) {
       process.env.JORIPSPACE_API_BASE_URL ||
       DEFAULT_API_URL
   );
-  const stored = credentialStore.load(selectedApiBaseUrl, projectEnv.JORIPSPACE_ACCOUNT_ID || '');
+  let stored = null;
+  if (projectEnv.JORIPSPACE_CONNECTION_SOURCE !== 'logged-out-project-env') {
+    try {
+      stored = credentialStore.load(selectedApiBaseUrl, projectEnv.JORIPSPACE_ACCOUNT_ID || '');
+    } catch (error) {
+      if (error.code !== 'credential_store_unavailable' || projectEnv.JORIPSPACE_CONNECTION_SOURCE === 'os-credential-store') throw error;
+    }
+  }
   if (stored) return { ...stored, workspaceDir };
 
   return {
@@ -1548,16 +1565,8 @@ function persistStartConnection(flags, connection, context = {}) {
   }
   const workspaceDir = path.resolve(stringFlag(flags, 'cwd') || projectWorkspaceDir(flags));
   ensureProjectEnvIgnored(workspaceDir);
-  const stored =
-    connection.source === 'os-credential-store'
-      ? connection
-      : credentialStore.save({ ...connection, accountId: context.accountId || connection.accountId });
-  updateDotEnvFile(path.join(workspaceDir, '.env.joripspace'), {
-    JORIPSPACE_API_BASE_URL: stored.apiBaseUrl,
-    JORIPSPACE_API_TOKEN: null,
-    JORIPSPACE_CONNECT_TOKEN: null,
-    JORIPSPACE_ACCOUNT_ID: stored.accountId,
-    JORIPSPACE_CONNECTION_SOURCE: 'os-credential-store',
+  persistProjectConnection(credentialStore, workspaceDir, {
+    ...connection, accountId: context.accountId || connection.accountId,
   });
   if (connection.source === 'legacy-global-session') scrubGlobalSessionToken();
   return true;
