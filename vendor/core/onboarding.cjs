@@ -194,8 +194,8 @@ const CODEX_MCP_ONBOARDING_LINES = [
   '- First check whether JoripSpace MCP tools are visible in the current agent session, then check the current working folder.',
   '- Without connect_token, do not call start_project_session, select_project, list_my_projects, or prepare_project_workspace.',
   '- Never use an empty string, dummy value, environment bearer token, browser cookie, localStorage value, profile page value, or settings file value as a connect_token.',
-  '- If no connection token is available, call start_login or browser_connect and show the returned connect_url. Ask the user to approve the connection in a logged-in browser and paste only the displayed MCP/CLI connection token back into chat.',
-  '- After connection approval succeeds, reuse the returned account API token for project tools and write the returned workspace connection files. The user should never have to find, name, or enter JORIPSPACE_API_TOKEN manually.',
+  '- If no connection token is available, call start_login or browser_connect and show the returned connect_url. Ask the user to approve the connection in a logged-in browser and paste only the displayed 5-minute one-time connection code back into chat. Immediately call exchange_connection_code with that code; never pass the code as connect_token.',
+  '- After exchange_connection_code succeeds, pass its returned connect_token directly to start_project_session. Then write the returned workspace connection files. The user should never have to find, name, or enter JORIPSPACE_API_TOKEN manually.',
   '- Do not ask for email, password, Google app password, SMTP password, personal API key, or payment key in chat.',
   '- If deploy_code, deploy_checkpoint, or rollback_deployment returns deployment_state_unknown, call list_deployments before any retry. If a new successful deployment exists, verify it and do not redeploy. Otherwise retry the same deployment tool at most once.',
   '- Do not restart the connection flow for a deployment timeout. Restart connection only for connection_required, invalid_token, or another explicit authentication error.',
@@ -220,11 +220,11 @@ const CODEX_MCP_ONBOARDING_LINES = [
 ];
 
 const CODEX_MCP_USER_CONNECT_MESSAGE_LINES = [
-  'JoripSpace 프로젝트를 Codex에 연결하려면 먼저 연결 토큰이 필요합니다.',
+  'JoripSpace 프로젝트를 Codex에 연결하려면 먼저 5분짜리 일회용 연결 코드가 필요합니다.',
   '1. 브라우저에서 아래 링크를 엽니다.',
   '2. JoripSpace에 로그인된 상태에서 연결을 승인합니다.',
-  '3. 화면에 표시되는 MCP/CLI 전용 연결 토큰을 이 채팅에 붙여넣습니다.',
-  '주의: 이메일이나 비밀번호는 필요하지 않습니다. Google 앱 비밀번호나 SMTP 비밀번호를 채팅에 붙여넣지 마세요. Codex가 브라우저 쿠키나 저장소에서 토큰을 직접 찾으면 안 됩니다. 연결 토큰은 프로젝트 온보딩 세션을 시작하기 위한 값이며, 일반 API bearer token과 다릅니다.',
+  '3. 화면에 표시되는 MCP/CLI 전용 연결 코드를 이 채팅에 붙여넣습니다. Codex는 이 코드를 exchange_connection_code로 교환한 뒤 받은 연결 토큰으로 프로젝트 세션을 시작합니다.',
+  '주의: 이메일이나 비밀번호는 필요하지 않습니다. Google 앱 비밀번호나 SMTP 비밀번호를 채팅에 붙여넣지 마세요. Codex가 브라우저 쿠키나 저장소에서 토큰을 직접 찾으면 안 됩니다. 연결 코드는 연결 토큰이 아니며 한 번만 사용할 수 있습니다. 교환 후 발급되는 연결 토큰은 프로젝트 온보딩 세션을 시작하기 위한 값이며, 일반 API bearer token과 다릅니다.',
 ];
 
 const SECRET_RULE_LINES = [
@@ -291,6 +291,7 @@ const PROJECT_CAPABILITY_LINES = [
   '- Before completion and again before deployment, verify every route in the route inventory with available automated tests and HTTP requests: each path responds correctly, URL-based routing is implemented, and an unknown path returns a friendly not-found response. Use an interactive browser only when the user explicitly asks for browser or visual verification. If any check fails, fix it and do not deploy.',
   '- DB: app code can use env.DB for structured records. For schema changes or data cleanup, use MCP describe_db, query_db, and run_db_migration, or the CLI db commands. A public app route such as /migrate is not the normal path because DB management tools already exist.',
   '- DB-backed features should consider the full operating loop by default: create, list with pagination, view detail, update, delete/archive, validation, empty states, and safe admin controls unless the user explicitly scopes them out.',
+  '- Database point-in-time restore is an owner-only, high-risk action in the JoripSpace web Backup and restore tab. It saves the current point first and validates foreign keys and integrity after restoring. Do not attempt it through project-agent MCP or CLI tools.',
   '- Storage: app code can use env.STORAGE for uploads, generated files, and private downloads. For agent-side file checks or one-off file operations, use MCP storage tools or CLI storage commands.',
   '- Public cache: JoripSpace safely bypasses Workers Cache unless a GET or HEAD response explicitly sets Cache-Control: public with a positive max-age or s-maxage. Use that only for public, reusable files or responses. Keep authenticated, personalized, private, or mutable responses on Cache-Control: private, no-store.',
   '- Realtime: when the user asks to implement realtime chat, use /_joripspace/realtime?room=main and the platform-managed SQLite history/search flow by default. JoripSpace stores accepted message history, preserves room ordering, maintains FTS5 search, and records project usage automatically without asking the user to choose Cloudflare, Durable Object, or FTS5.',
