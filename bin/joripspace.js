@@ -10,6 +10,7 @@ const readline = require('node:readline/promises');
 const { formatDeploymentFailure } = require('../lib/deployment-error');
 const {
   printHelp,
+  printReportHelp,
   printDeployHelp,
   printDeployTemplateHelp,
   printInstallTemplateHelp,
@@ -151,6 +152,11 @@ async function main() {
     return;
   }
 
+  if (command === 'report' && (flags.help || flags.h)) {
+    printReportHelp();
+    return;
+  }
+
   if (
     (flags.help || flags.h) &&
     command !== 'deploy' &&
@@ -283,7 +289,9 @@ async function main() {
       await getUsageBreakdown(flags);
       return;
     case 'tokens':
-      webOnlyCommand(message('API token administration', 'API 토큰 관리'));
+      if (rest[0] === 'revoke') await revokeToken(flags);
+      else if (rest[0] === 'current') await listTokens(flags);
+      else throw new Error('Use tokens current or tokens revoke --current|--token-id ID');
       return;
     case 'crons':
       await remoteCommands.listCrons(flags);
@@ -569,8 +577,8 @@ async function getProject(flags) {
 async function reportAgentIssue(flags) {
   const project = requireProjectId(flags);
   const category = (stringFlag(flags, 'category') || 'problem').trim().toLowerCase();
-  if (category !== 'problem' && category !== 'bug') {
-    throw new Error('report --category must be problem or bug');
+  if (category !== 'problem' && category !== 'bug' && category !== 'feedback') {
+    throw new Error('report --category must be problem, bug, or feedback');
   }
   const summary = (stringFlag(flags, 'summary') || stringFlag(flags, 'message')).trim();
   if (!summary) throw new Error('report requires --summary');
@@ -1095,12 +1103,8 @@ function printWebhookDelivery(delivery) {
 }
 
 async function listTokens(flags) {
-  throw new Error(
-    message(
-      'Issue or disable API tokens in your web profile. CLI tokens are for project management.',
-      'API 토큰은 웹 프로필에서 발급하거나 사용 중지해주세요. CLI 토큰은 프로젝트 관리 전용입니다.'
-    )
-  );
+  const result = await apiRequest(flags, '/v1/me/tokens/current', { method: 'GET', ...projectAuth(flags) });
+  output(flags, result, (value) => console.log(value.token_id));
 }
 
 async function createToken(flags) {
@@ -1113,12 +1117,13 @@ async function createToken(flags) {
 }
 
 async function revokeToken(flags) {
-  throw new Error(
-    message(
-      'Disable API tokens in your web profile. A CLI token cannot revoke tokens.',
-      'API 토큰은 웹 프로필에서 사용 중지해주세요. CLI 토큰으로 토큰을 폐기할 수 없습니다.'
-    )
-  );
+  const tokenId = stringFlag(flags, 'token-id');
+  if (Boolean(flags.current) === Boolean(tokenId)) throw new Error('Specify exactly one of --current or --token-id ID');
+  const target = flags.current ? 'current' : tokenId;
+  const result = await apiRequest(flags, `/v1/me/tokens/${encodeURIComponent(target)}`, {
+    method: 'DELETE', ...projectAuth(flags),
+  });
+  output(flags, result, (value) => console.log(`${value.token_id}: ${value.status}`));
 }
 
 async function deleteProject(flags) {

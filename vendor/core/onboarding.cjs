@@ -1,4 +1,4 @@
-const { JORIPSPACE_CLI_GUIDE, JORIPSPACE_NPM_ONBOARDING_DOCUMENT } = require('./cli-onboarding.cjs');
+const { JORIPSPACE_TOOL_SELECTION_LINES, JORIPSPACE_CLI_GUIDE, JORIPSPACE_NPM_ONBOARDING_DOCUMENT } = require('./cli-onboarding.cjs');
 const { buildGithubWorkflow, projectGithubActionsTemplateFile } = require('./github-workflow.cjs');
 const { templateGithubActionsPublishFile } = require('./template-publish-workflow.cjs');
 
@@ -15,14 +15,14 @@ const JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES = [
   '.joripspace/local-backups/',
 ];
 const JORIPSPACE_ONBOARDING_GITIGNORE_REMOVALS = ['.joripspace/agent-session.json'];
-const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-10-20T00:10:15+09:00';
+const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-10-24T22:35:07+09:00';
 const JORIPSPACE_WORKFLOW_POLICY = Object.freeze({
   target: 'joripspace',
   guide_required: true,
   external_hosting_deployment: 'blocked',
   generic_scaffold_recovery: 'convert_to_joripspace',
-  framework_selection: 'agent_managed_dynamic_worker_or_hono',
-  framework_reassessment: 'migrate_pure_worker_to_hono_as_scope_grows',
+  framework_selection: 'hono_default_for_new_projects',
+  framework_reassessment: 'preserve_existing_framework',
   rendering_default: 'server_side_all_user_facing_routes',
   user_interaction: 'automatic_unless_business_or_destructive_decision_is_required',
 });
@@ -120,7 +120,7 @@ const BEGINNER_ONBOARDING_LINES = [
   '- If the user says they do not know, give 2-3 simple examples, recommend one default, and continue.',
   '- Explain only the next useful action. Avoid long technical explanations unless the user asks.',
   '- If something fails, inspect logs, deployments, and runtime events directly; do not make the user debug technical details.',
-  '- When a JoripSpace platform command fails unexpectedly, or its result differs from the documented behavior after one safe verification, submit one incident with the installed CLI `report` command. Include a short summary, expected and actual behavior, available error code, and non-secret diagnostic details. Do not include credentials, personal data, or duplicate reports, and continue helping the user when a safe alternative remains.',
+  '- For a user-requested platform problem report or improvement suggestion, submit one incident with the installed CLI `report` command after reading report --help. Use category problem or bug for failures, feedback for improvement suggestions. Include a summary, expected and actual behavior, available error code, and non-secret details. Do not send unsolicited reports or include credentials, personal data, or duplicates. Report the returned report_id; an uncertain response is not a confirmed submission.',
 ];
 
 const USER_CHOICE_PRESENTATION_RULE_LINES = [
@@ -160,7 +160,7 @@ const JORIPSPACE_BUILD_DEPLOYMENT_AUTHORITY_LINES = [
   'JoripSpace site creation and deployment authority (critical):',
   '- For every site build, edit, and deployment in this project, this managed JoripSpace guide is the project-specific source of truth.',
   "- Do not replace or bypass the JoripSpace workflow with an agent's own default website-building skill, generic hosting/deployment skill, or another platform's deployment workflow. Use such a skill only when this guide explicitly requires it or the user explicitly requests a non-JoripSpace target.",
-  '- When the user explicitly requests deployment, deploy the verified result to the selected JoripSpace project. Use JoripSpace MCP `deploy_code` for small source files that can be passed intact. For generated bundles, large files, or large multi-file projects, automatically use the installed JoripSpace CLI absolute path with `deploy --dir`; its archive upload reads local bytes directly, uploads in chunks, and verifies integrity before deployment. Do not ask the user to choose the transport.',
+  '- When the user explicitly requests deployment, deploy the verified result to the selected JoripSpace project. Prefer the installed JoripSpace CLI for deployment even when MCP is active. Use MCP `deploy_code` for intact small source only when CLI installation or execution is unavailable. For generated bundles, large files, or large multi-file projects, automatically use the installed JoripSpace CLI absolute path with `deploy --dir`; its archive upload reads local bytes directly, uploads in chunks, and verifies integrity before deployment. Do not ask the user to choose the transport.',
   '- Treat an inline deployment as large when any source file exceeds 16,000 characters or the combined source exceeds 64,000 characters. Do not call deploy_code for that payload; use the installed JoripSpace CLI chunked archive transport automatically.',
   '- Do not deploy directly to another hosting provider or create a separate external site unless the user explicitly asks to leave JoripSpace.',
   '- If an agent default skill or generic site builder already created scaffold files, do not stop, discard useful work, or ask the user to choose a host. Preserve the requested UI and content, convert the result to a JoripSpace-compatible app, align source and lockfiles, run the relevant checks, and continue automatically.',
@@ -192,16 +192,16 @@ const CODEX_MCP_ONBOARDING_LINES = [
   'Codex MCP onboarding flow:',
   '- If the user provides only "프로젝트: {project_id}", do not call get_project first by project ID alone.',
   '- First check whether JoripSpace MCP tools are visible in the current agent session, then check the current working folder.',
-  '- Without connect_token, do not call start_project_session, select_project, list_my_projects, or prepare_project_workspace.',
+  '- Without an authenticated MCP transport session, do not call project tools. Authenticate through the client OAuth flow or exchange a connection code in the initialized MCP session; never ask the user for an API token.',
   '- Never use an empty string, dummy value, environment bearer token, browser cookie, localStorage value, profile page value, or settings file value as a connect_token.',
-  '- If no connection token is available, call start_login or browser_connect and show the returned connect_url. Ask the user to approve the connection in a logged-in browser and paste only the displayed 5-minute one-time connection code back into chat. Immediately call exchange_connection_code with that code; never pass the code as connect_token.',
-  '- After exchange_connection_code succeeds, pass its returned connect_token directly to start_project_session. Then write the returned workspace connection files. The user should never have to find, name, or enter JORIPSPACE_API_TOKEN manually.',
+  '- If the MCP transport session is not authenticated, call start_login or browser_connect and show the returned connect_url. Ask the user to approve the connection in a logged-in browser and paste only the displayed 5-minute one-time connection code back into chat. Immediately call exchange_connection_code with that code; never pass the code as connect_token.',
+  '- After exchange_connection_code succeeds, call start_project_session with project_id in the same MCP transport session without token arguments. The server resolves the credential internally. Write only the returned nonsecret workspace metadata and preserve existing local credentials. The user should never have to find, name, or enter JORIPSPACE_API_TOKEN manually.',
   '- Do not ask for email, password, Google app password, SMTP password, personal API key, or payment key in chat.',
   '- If deploy_code, deploy_checkpoint, or rollback_deployment returns deployment_state_unknown, call list_deployments before any retry. If a new successful deployment exists, verify it and do not redeploy. Otherwise retry the same deployment tool at most once.',
   '- Do not restart the connection flow for a deployment timeout. Restart connection only for connection_required, invalid_token, or another explicit authentication error.',
   '- Create local files only after MCP session connection succeeds and workspace_setup.files or local_file_operations are returned.',
   '- Before writing files, verify the current working folder. If it differs from the folder the user specified, stop and ask for confirmation.',
-  '- After receiving connect_token, call start_project_session(connect_token, project_id) immediately. Follow source_sync before writing workspace_setup.files when the session reports github_repository_sync_required; otherwise write returned workspace files normally. Do not initialize Git merely for JoripSpace onboarding.',
+  '- After session authentication succeeds, call start_project_session(project_id) immediately without copying credentials into arguments or local files. Follow source_sync before writing workspace_setup.files when the session reports github_repository_sync_required; otherwise write returned workspace files normally. Do not initialize Git merely for JoripSpace onboarding.',
   '- If start_project_session reports github_repository_sync_required, treat the connected GitHub repository and branch as the source of truth. Using the current user GitHub credentials, clone into an empty current folder or safely fetch and fast-forward the matching clean repository, then write the connection workspace files. Never restore a JoripSpace deployment artifact over a GitHub-connected source workspace, never force-push or hard-reset, and stop with the concrete Git/auth conflict when safe synchronization is impossible.',
   '- If start_project_session reports latest_deployment_sync_required, do not ask whether to restore and do not offer rollback versions. Write the connection workspace files first, call get_deployment_source with deployment_restore.latest_artifact.deployment_id, back up conflicting local files, and apply the returned local_file_operations before asking questions or editing the project.',
   '- For a completely new project, start_project_session embeds the current published templates in onboarding.template_choice.templates. After workspace files are ready, use that embedded list before the first service question. Do not depend on a newly added or separately cached list_templates tool during initial onboarding.',
@@ -229,29 +229,29 @@ const CODEX_MCP_USER_CONNECT_MESSAGE_LINES = [
 
 const SECRET_RULE_LINES = [
   'Secret and token rules:',
-  '- When the user says a Secret or key needs to be generated, entered, added, or registered, do not stop by asking them to determine the key name or purpose. Offer to inspect the current project and handle the safe path, then ask exactly once: "제가 직접 확인하고 진행할까요?" Explain in the same reply that an internal key can be generated and registered automatically, while an external provider key may require browser assistance and a user-only authentication or value-entry step.',
-  '- After the user approves with a clear reply such as "네", "진행해", "너가 해", or "ㅇㅇ", inspect the project source, configuration, current task, and safe metadata to infer the required binding name, purpose, and whether it is internal or externally issued. Ask a follow-up question only when those facts cannot be determined safely.',
-  '- The initial Secret-work consent covers the described inspection and resulting internal generation or external browser-assisted registration. Do not ask for duplicate consent before browser assistance; first state the inferred binding names, purpose, safety boundary, and clickable Secret link, then continue. Ask new consent only if the scope materially changes.',
+  '- When the user asks to generate or register a Secret, do not stop by asking them to determine the key name or purpose. Inspect the project and safe metadata, infer the binding and internal-versus-external purpose, and carry out the authorized task. Internal generation does not need duplicate consent or browser registration.',
+  '- Ask a follow-up only when the binding, purpose, target project, or replacement scope cannot be determined safely. Do not rotate unrelated existing keys or change provider accounts as part of internal generation.',
+  '- Do not ask for duplicate consent before browser assistance already authorized for the described credential task. Ask new consent only if browser assistance was not authorized or the scope materially changes.',
   '- Never put API keys, payment keys, SMS/email keys, database URLs, or tokens in source code, README files, browser JavaScript, screenshots, chat summaries, logs, error messages, or audit metadata.',
   '- Store external service keys used by deployed code only as JoripSpace project secrets. Only the selected project User Worker secret binding stores the value; the platform DB keeps project-scoped name, status, and lifecycle timestamps only.',
   '- Never copy project Secret values into source code, env.DB, env.STORAGE, deployment source, checkpoint files, saved copies, logs, error messages, or audit metadata.',
-  '- Do not ask the user to paste provider Secret values into chat. Send them to the "비밀 키" tab for the selected project to register, replace, or delete the value, then use list_secrets only to confirm name, status, and timestamps. Secret values never appear in list responses or agent reports.',
+  '- Do not ask the user to paste provider Secret values into chat. Prefer CLI secret set --name NAME --value-stdin for an authorized external value supplied through safe process input; otherwise send them to the selected project Secret web page for user-only entry. Deletion remains a web operation. Verify metadata with CLI secret list or MCP list_secrets. Secret values never appear in list responses or agent reports.',
   '- Every user-facing request for an external provider credential must include a clickable Markdown link to `https://joripspace.com/projects/{project_id}/?tab=secrets`. Use the selected project slug in place of `{project_id}`. Never mention only the tab name or provide an unlinked URL.',
-  '- Before browser assistance for an external provider credential, explain the exact required binding names, what each key enables, and that Secret values must not be pasted into chat. If no Secret-work consent has been obtained yet, ask exactly one short consent question such as "제가 브라우저로 비밀 키 등록을 진행할까요?". If the user already approved "제가 직접 확인하고 진행할까요?", do not ask again.',
+  '- Before browser assistance for an external provider credential, explain the exact required binding names, purpose, and chat safety rule. If browser assistance was not already authorized, ask once "제가 브라우저로 비밀 키 등록을 진행할까요?". Do not ask again for already authorized assistance.',
   '- Treat clear affirmative replies such as "네", "진행해", "너가 해", or "ㅇㅇ" as approval for that described browser-assisted credential task only. Approval does not authorize unrelated account changes, credential rotation, billing changes, or destructive actions.',
   "- After approval, use an available browser-control tool with the user's existing signed-in session to open the provider and selected JoripSpace project Secret pages and complete safe navigation and form steps. Never inspect cookies, localStorage, sessionStorage, saved passwords, or unrelated account pages.",
   '- Keep provider Secret values out of chat, screenshots, shell commands, clipboard history, local files, tool summaries, and logs. If the browser environment cannot transfer a value without exposing it, or if reauthentication, MFA, CAPTCHA, credential reveal, or other user-only verification is required, stop at that exact visible step and ask the user to complete only that step in the browser. Continue automatically after the user confirms completion.',
   '- After browser-assisted registration, call list_secrets and report only the binding name and registration status. Never repeat, reveal, compare, or summarize the Secret value.',
   '- Prefer the OS credential store for local JoripSpace CLI tokens. If it is unavailable before writing, login uses the ignored project-local `.env.joripspace`; logout removes that saved token. Never duplicate the value in JSON, TOML, source, another session file, or MCP client configuration. The shared project identity is the one-line `.joripspace/project` slug.',
-  '- If an MCP/CLI connect_token or api_token is missing, do not browse around, inspect cookies, read browser storage, or try profile pages to discover it. Ask the user for the MCP/CLI connection token and give the exact connection URL, token argument name, and CLI command to paste it into.',
+  '- If an MCP/CLI connect_token or api_token is missing, do not browse around or inspect browser storage to discover it. Show the connection URL and ask only for the displayed 5-minute one-time code. Use CLI login --code or MCP exchange_connection_code, then use the MCP session server-side or let CLI login persist its own local credential without printing it. Never request the token itself or pass the code as connect_token.',
   '- Secret names must match [_A-Z][_A-Z0-9]* and be at most 128 characters. DB, STORAGE, PROJECT_ID and names beginning JORIPSPACE_, CF_, or CLOUDFLARE_ are reserved and must not be used.',
   '- A project supports at most 60 active secrets, and each value must be 1-5,120 UTF-8 bytes. Use clear uppercase names such as TOSS_PAYMENTS_SECRET_KEY, TOSS_PAYMENTS_BILLING_SECRET_KEY, DODO_PAYMENTS_API_KEY, SOLAPI_API_KEY, or SOLAPI_API_SECRET.',
-  '- For app-internal random values such as session signing, CSRF protection, encryption, or test secrets, call generate_project_secret. The platform generates and stores the value directly; the agent uses only the binding name and never asks the user to enter a value.',
+  '- For app-internal random values such as session signing, CSRF protection, encryption, or test secrets, prefer CLI secret generate --name NAME --json; use generate_project_secret when the CLI cannot run. Both generate and store the value without exposing it and preserve an existing active binding. Do not ask the user to enter a random value.',
   '- The project_agent connection is authorized for value-blind internal Secret generation through project.secrets.generate and CLI registration/replacement through project.secrets.set using standard input. Stored Secret values cannot be read back, and Secret deletion remains a web operation. Do not pass values through MCP tool arguments or chat.',
   '- If generate_project_secret or another Secret registration API fails because of permission, authorization, access, or write restrictions, do not end with manual registration instructions. Include the clickable project Secret link and ask: "현재 연결 권한으로 자동 등록하지 못했습니다. 제가 브라우저로 직접 진행할까요?".',
   '- On that fallback question, do not ask the user to invent or enter a random value yet. After approval, open the Secret page with a browser-control tool and perform every safe step available. Ask the user only at the exact user-only authentication or value-entry step if one remains.',
   '- Treat the API failure as a change of execution path, not completion. Do not report that the Secret task is complete until list_secrets confirms the requested binding is active.',
-  '- Internal random Secret generation does not require browser assistance. When the agent independently discovers it as a normal implementation step within already approved work, it needs no separate confirmation; when the user initiates a Secret-generation request, use the one-time Secret-work consent flow above.',
+  '- Internal random Secret generation does not require browser assistance or an extra approval when the user requests generation or it is necessary for already authorized implementation. Verify the active binding through secret list or list_secrets before reporting completion.',
   '- Secrets are isolated by the immutable internal project id. A name or binding from one project must never be treated as available to another project.',
   '- Normal project deployments and rollbacks preserve secret_text and secret_key bindings. Do not copy or re-upload Secret values as part of deployment source; project deletion cleans up the project Worker secrets with its metadata.',
   '- Browser code may receive only public keys or safe redirect URLs. Server routes must handle private provider calls.',
@@ -302,7 +302,7 @@ const PROJECT_CAPABILITY_LINES = [
   '- Realtime history: read a room page from /_joripspace/realtime/rooms/{room}/messages?limit=50&before={cursor}. Do not implement a second history store or a custom Durable Object in generated app code.',
   '- Realtime search: search the same room endpoint with search={query}, limit, and before. Search uses managed Unicode token search; do not add LIKE %query% scans or a second search index in env.DB.',
   '- Realtime usage: duplicate message ids and retried usage event ids are idempotent. FTS5 reads/writes count as SQLite usage, search is not a message send, and compatibility migration work is not a new message send. All usage is attributed to the resolved immutable internal project id.',
-  '- Project mail: when the user asks to connect email sending, use MCP connect_mail. If it returns smtp_setup_available, send the user to the returned JoripSpace mail tab URL and have them enter the SMTP host, port, security mode, username, password or API key, and sender address in the web UI. Never ask them to paste SMTP credentials into chat. If it returns browser_google_consent_required, return the JoripSpace mail connection start URL. Wait for the user to approve or save the connection in the browser, then call get_mail_status and send_test_mail. Do not modify project source or implement a separate mail integration.',
+  '- Project mail: when the user asks to connect email sending, prefer CLI mail connect; use MCP connect_mail when the CLI cannot run. If it returns smtp_setup_available, send the user to the returned JoripSpace mail tab URL and have them enter the SMTP host, port, security mode, username, password or API key, and sender address in the web UI. Never ask them to paste SMTP credentials into chat. If it returns browser_google_consent_required, return the JoripSpace mail connection start URL. Wait for the user to approve or save the connection in the browser, then call get_mail_status and send_test_mail. Do not modify project source or implement a separate mail integration.',
   '- Explain these to ordinary users as 서버, DB, 스토리지, and 실시간. Use implementation names only when code or technical debugging requires them.',
 ];
 
@@ -360,14 +360,12 @@ const IMAGE_AND_FILE_PLACEMENT_LINES = [
 
 const FRAMEWORK_SELECTION_LINES = [
   'Framework selection rules (agent decides internally):',
-  '- Keep the current technology stack for an existing project unless there is a concrete reason to change it.',
-  '- Use a pure Cloudflare Worker for a new, single-purpose feature with only simple request handling and no meaningful shared middleware.',
-  '- Use Hono when the service has multiple APIs or routes, or needs shared authentication, CORS, validation, error handling, middleware, or similar cross-cutting behavior.',
-  '- If routing would otherwise grow into a hand-written if/switch dispatch structure, use Hono instead.',
-  '- If the choice between a pure Worker and Hono is ambiguous, choose Hono.',
-  '- When Hono is selected for a new project, use the current stable release compatible with the project. Do not downgrade Hono merely because a bundled entrypoint uses `export { app as default }`; JoripSpace accepts valid ES module default export forms.',
-  '- Re-evaluate this choice as the service grows. If a pure Worker later reaches the Hono conditions above, migrate it to Hono during the task without asking the user to choose a framework.',
-  '- During a pure Worker to Hono migration, preserve existing URLs, request/response behavior, bindings, and user data; update dependencies and the lockfile together; then rerun relevant checks before continuing.',
+  '- Keep the current technology stack for an existing project. Do not migrate an existing project to Hono solely because Hono is the default for new projects.',
+  '- Use Hono as the default server framework for every new project, including single-route and simple services.',
+  '- Use Hono routes and middleware for shared authentication, CORS, validation, error handling, and similar cross-cutting behavior in new projects.',
+  '- For new projects, use Hono routing instead of a hand-written if/switch dispatch structure.',
+  '- For a new Hono project, use the current stable release compatible with the project. Do not downgrade Hono merely because a bundled entrypoint uses `export { app as default }`; JoripSpace accepts valid ES module default export forms.',
+  '- When the user requests a framework migration, preserve existing URLs, request/response behavior, bindings, and user data; update dependencies and the lockfile together; then rerun relevant checks before continuing.',
   '- A short, single-purpose service may keep its implementation in one Worker entry file.',
   '- As routes, authentication, validation, data access, external integrations, admin features, or unrelated responsibilities grow, split the source into role-based modules such as routes, middleware, services, repositories, and utilities.',
   '- Keep the Worker entrypoint focused on application setup and route wiring. Do not combine all implementation into worker.js merely to reduce the source file count.',
@@ -405,9 +403,9 @@ const FRAMEWORK_DEPLOYMENT_PRIORITY_LINES = [
 
 const AGENT_OPERATING_RULE_LINES = [
   '- Public pricing page copy is product-approved content. Do not rename, paraphrase, reorder, or otherwise improve plan names, subtitles, benefits, prices, units, descriptions, or CTA text unless the user explicitly requests that exact change. When a pricing copy change is requested, update SSR, browser rendering, documentation, and release checks together.',
-  '- JoripSpace execution order: use MCP tools when they are active. Otherwise continue with the installed JoripSpace CLI absolute path returned by `start`. For generated bundles, large files, or large multi-file projects, use that CLI path even when MCP tools are visible because it uploads local bytes in verified chunks.',
+  '- JoripSpace execution order: prefer the installed CLI, or install/update it when the environment supports it, even when MCP tools are active. Use onboarding.invocation from CLI start. Use MCP only when CLI installation or execution is unavailable; do not move credentials between configurations.',
   '- MCP-only setup and deploy do not require Node.js or Git. Follow the local tool readiness rules: check and report both tools during onboarding, but install only a missing tool that the current project path actually requires and only after explicit user approval. Never ask the beginner to run npm or git commands.',
-  '- If a required MCP/CLI token is missing, stop setup and give precise recovery instructions instead of browsing around: open https://joripspace.com/connect/ in a logged-in browser, approve the connection, copy the displayed 5-minute connection code, then provide it as connect_token or run `joripspace login --code "복사한_연결_코드"`.',
+  '- If a required MCP/CLI token is missing, stop setup and give precise recovery instructions instead of browsing around: open https://joripspace.com/connect/ in a logged-in browser, approve the connection, copy the displayed 5-minute connection code, then exchange it with exchange_connection_code (never pass the code as connect_token) or run `joripspace login --code "복사한_연결_코드"`.',
   '- A verified pre-existing package helper is conditional legacy compatibility only. New `start` onboarding does not generate it. Never prefer it over the installed JoripSpace CLI or install Node.js solely to run a JoripSpace helper.',
   '- Use the installed CLI for checkpoint, restore, pull, and archive deployment when MCP is unavailable or inline transport is unsuitable. Node.js readiness is determined only by the project build itself or an explicitly requested legacy helper workflow.',
   '- When MCP is unavailable, use the installed JoripSpace CLI absolute path returned by start. Use its `deploy --dir` command for generated bundles, large files, or large multi-file projects. Do not require an app restart, project-local helper, or Node.js installation, and do not ask the user to choose or run the command.',
@@ -416,14 +414,14 @@ const AGENT_OPERATING_RULE_LINES = [
   '- During initial MCP onboarding, if a successful downloadable deployment exists, automatically use the latest successful deployment as the local workspace baseline before starting work. Do not ask whether to restore and do not offer older rollback versions.',
   '- Restore the latest deployed source into the current local workspace after backing up conflicting local files outside the project folder. Never overwrite `.env.joripspace`, `.joripspace/project`, AGENTS.md, CLAUDE.md, agent configuration, or any token file during deployed-source restore.',
   '- When speaking to the user, use simple product terms: say server, DB, storage, and realtime. Use implementation names only when the user asks for technical details or when writing code.',
-  '- Read the canonical one-line `.joripspace/project` and source-bound `.env.joripspace` connection before deploying or operating the project. Authentication values and per-collaborator guide-check time live only in `.env.joripspace`.',
+  '- Read the canonical one-line `.joripspace/project` before deploying or operating the project. Let the CLI resolve local credentials internally, or let the MCP transport resolve its session server-side; do not read credential files into agent context. CLI authentication lives in its OS credential store or supported ignored local fallback; MCP authentication remains in its transport session. Workspace responses include only nonsecret connection metadata and guide-check time.',
   '- A JoripSpace project should already have its server, DB, and storage prepared at project creation. Do not ask the user to choose or configure DB/storage bindings.',
   '- Use MCP/CLI DB tools to inspect schema, run migrations, and query project data when the service needs stored records.',
   '- Use MCP/CLI storage tools to list, read, write, and delete project files when the service needs uploads or generated files.',
   '- Keep secrets out of git. Add provider keys through project secrets or ignored local files only.',
   '- If dependencies are missing, detect the package manager and install what is needed yourself when it is safe. Ask the user only for paid accounts, credentials, or business decisions.',
   '- Git is optional for ordinary JoripSpace MCP onboarding and direct MCP deployment, but required for a connected GitHub source or deployment route. If required and missing, use the shared readiness approval flow; otherwise continue without Git and do not ask the beginner to initialize, commit, fetch, or push.',
-  '- If Git is available, initialize the current project folder during onboarding when it is not already a repository. Preserve an existing repository and its history. Never initialize a parent folder or another unrelated folder.',
+  '- Do not initialize Git merely for onboarding. Initialize it only when the selected Git-history template or connected GitHub route requires it. Preserve an existing repository and its history. Never initialize a parent folder or another unrelated folder.',
   '- Before staging a deployment commit, inspect git status and the staged diff, and exclude secrets, tokens, local credential files, dependencies, build caches, and unrelated user changes. `.joripspace/project` may be committed because it contains only the canonical slug. Never use git add -A blindly in a dirty workspace.',
   '- Build the smallest usable version first, then improve it after testing.',
   '- Deploy only when the user explicitly requests deployment of the current change. Otherwise run checks and save a checkpoint without deploying.',
@@ -461,21 +459,22 @@ const CHECKPOINT_AGENT_RULE_LINES = [
   '- Treat local file restore and production rollback as separate confirmed actions. 이전 상태로 돌아가 means explain and confirm both independently.',
   '- Whenever two or more restore points or rollback versions are shown, including in response to an availability or inventory question such as "복원 가능한 것들이 있나?", show them as a Markdown table with number, version or identifier, timestamp, label or status, and effect. Do not wait until the user explicitly asks to choose one.',
   '- Customer project secrets, .env files, certificates, and private keys may be included in checkpoints and deployments with redacted warnings; never print their values or file contents. Continue excluding JoripSpace connection credentials, .git, node_modules, .wrangler, agent instructions/configuration, and `.joripspace/project`. Preserve the local canonical marker during restore.',
-  '- Prefer MCP checkpoint tools. If MCP is unavailable, use the installed JoripSpace CLI absolute path with checkpoint save, checkpoint list, checkpoint restore, and checkpoint deploy. Existing npm run joripspace:* helpers are conditional legacy compatibility only and are never required by new start onboarding.',
+  '- Prefer the installed JoripSpace CLI for checkpoint save, checkpoint list, checkpoint restore, and checkpoint deploy even when MCP is active. Use MCP checkpoint tools when the CLI cannot be installed or executed. Existing npm run joripspace:* helpers are conditional legacy compatibility only and are never required by new start onboarding.',
 ];
 
 const AFTER_CONNECTION_RULE_LINES = [
   'After MCP or CLI setup:',
-  "- At the start of each new distinct user task, call search_knowledge once with the user's plain request before answering, planning, asking questions, or starting work. Apply the returned user_guidance, recommendation, and actions to both the response and the work, including short user requests. Do not repeat the search for every follow-up in the same task unless the topic changes or current guidance is needed.",
+  ...JORIPSPACE_TOOL_SELECTION_LINES,
+  "- At the start of each new distinct user task, use CLI knowledge search when available; in the MCP fallback, call search_knowledge once with the user's plain request before answering, planning, asking questions, or starting work. Apply the returned user_guidance, recommendation, and actions to both the response and the work, including short user requests. Do not repeat the search for every follow-up in the same task unless the topic changes or current guidance is needed.",
   '- If search_knowledge returns no direct match, use its prioritized fallback guidance and ask at most three short business questions. If the knowledge service fails, continue with the built-in JoripSpace guide and explain only when the failure blocks the task.',
   '- Do not stop with only "yes, it is possible" or a capability checklist.',
-  '- If setup cannot continue because connect_token or api_token is missing, do not click through the browser, inspect cookies, localStorage, sessionStorage, or account pages, or attempt login automation. Tell the user exactly where to get the token and how to paste it back.',
+  '- If setup cannot continue because connect_token or api_token is missing, do not inspect browser state or ask for the token. Show the connection URL and request only the 5-minute one-time code, then exchange it with CLI login --code or MCP exchange_connection_code.',
   '- The user does not need to say "onboarding". After connection succeeds, continue into project selection, workspace file writing, and the first service questions automatically.',
-  '- Prefer a single start_project_session tool call when it is available. It combines session lookup, project choice handling, workspace file instructions, and first questions.',
+  '- When the CLI cannot be installed or executed, prefer a single start_project_session tool call for the MCP fallback. It combines session lookup, project choice handling, workspace file instructions, and first questions.',
   '- If an MCP response includes workspace_setup.files, write those files into the current working folder immediately before replying.',
   '- If an MCP response includes local_file_operations, execute those local file writes/appends before replying to the user.',
-  '- At the start of every new distinct JoripSpace task, call prepare_project_workspace before answering, planning, asking questions, or starting work. A new chat does not prove that the local guide is current, and a same-day guide update must not be skipped. Do not use cron or ask the user to run a refresh command.',
-  '- Compare the returned AGENTS.md managed block and agent_guide.updated_at with the local JoripSpace managed block on every task-start check. When it differs, replace only the JoripSpace block and preserve user-authored content. Keep `@AGENTS.md` as the first unique CLAUDE.md line, validate `.joripspace/project`, and upsert `.env.joripspace` without discarding unrelated entries. Migrate a legacy token-bearing `.joripspace/agent-session.json` into the env file and remove it only after verification.',
+  '- At the start of every new distinct JoripSpace task, refresh through CLI start when available; in the MCP fallback, call prepare_project_workspace before answering, planning, asking questions, or starting work. A new chat does not prove that the local guide is current, and a same-day guide update must not be skipped. Do not use cron or ask the user to run a refresh command.',
+  '- Compare the returned AGENTS.md managed block and agent_guide.updated_at with the local JoripSpace managed block on every task-start check. When it differs, replace only the JoripSpace block and preserve user-authored content. Keep `@AGENTS.md` as the first unique CLAUDE.md line, validate `.joripspace/project`, and upsert `.env.joripspace` without discarding unrelated entries. Delegate legacy credential migration to the installed CLI without reading or printing credential values; remove a legacy session file only after CLI migration is verified.',
   '- Before application work in a Git-history template project, read `.joripspace/template.json` and use the installed JoripSpace CLI `template pull` check to compare its `git_head_sha` with the latest entitled version. This check must not download a bundle or modify Git. When an update exists, report its version plus the local working-tree state and ask for explicit user approval. Only after approval, rerun the CLI command with `--yes`; it replaces `.git/joripspace/upstream.bundle`, fetches `upstream/main`, and merges the official descendant while preserving the user `origin`. If the user declines, continue without updating. Never pull automatically and never download or merge an update automatically; when there are uncommitted changes, rewritten history, divergence, or likely conflicts, stop and explain the safe next action.',
   '- If the current request is only to update or refresh the guide, follow the shared guide-refresh-only rules. Do not turn that maintenance request into source work, a checkpoint, Git activity, GitHub Actions, or deployment.',
   '- When MCP connection and workspace setup succeed, run the local Git and Node.js readiness check before the first service question. Ask about installation only when a missing tool is required for the current path; otherwise continue without installation. Never ask the user to run npm or git commands, locate API environment variables, or repeat the connection token.',
@@ -485,7 +484,7 @@ const AFTER_CONNECTION_RULE_LINES = [
   '- If the user says they do not know what to build, suggest 2-3 simple service examples and pick a practical default.',
   '- Whenever those examples or any other concrete alternatives require the user to choose, follow the shared user choice presentation rules and show them as a Markdown table.',
   '- End each user-facing reply with the next thing to click, check, or answer.',
-  '- If MCP tools do not appear immediately in an app, do not require a restart. Continue the current task with the installed JoripSpace CLI absolute path; prefer MCP automatically in a later session when it is active.',
+  '- If MCP tools do not appear immediately in an app, do not require a restart. Continue the current task with the installed JoripSpace CLI absolute path; keep the CLI preferred in later sessions whenever installation and execution are supported, even if MCP becomes active.',
 ];
 
 const REQUIRED_ONBOARDING_MARKERS = [
@@ -511,13 +510,10 @@ const REQUIRED_ONBOARDING_MARKERS = [
   'deployment_verification.agent_guide_updated_at',
   'source_compatibility to joripspace_native or converted_to_joripspace',
   'Framework selection rules (agent decides internally)',
-  'Use a pure Cloudflare Worker for a new, single-purpose feature',
-  'Use Hono when the service has multiple APIs or routes',
-  'If routing would otherwise grow into a hand-written if/switch dispatch structure, use Hono instead',
-  'If the choice between a pure Worker and Hono is ambiguous, choose Hono',
+  'Use Hono as the default server framework for every new project, including single-route and simple services',
+  'Do not migrate an existing project to Hono solely because Hono is the default for new projects',
+  'For new projects, use Hono routing instead of a hand-written if/switch dispatch structure',
   'Do not downgrade Hono merely because a bundled entrypoint uses `export { app as default }`',
-  'Re-evaluate this choice as the service grows',
-  'migrate it to Hono during the task without asking the user to choose a framework',
   'A short, single-purpose service may keep its implementation in one Worker entry file',
   'split the source into role-based modules such as routes, middleware, services, repositories, and utilities',
   'Do not combine all implementation into worker.js merely to reduce the source file count',
@@ -541,7 +537,7 @@ const REQUIRED_ONBOARDING_MARKERS = [
   'JoripSpace project secrets',
   'Only the selected project User Worker secret binding stores the value',
   'Secret values never appear in list responses',
-  '제가 직접 확인하고 진행할까요?',
+  'Internal generation does not need duplicate consent or browser registration.',
   'do not stop by asking them to determine the key name or purpose',
   'Do not ask for duplicate consent before browser assistance',
   'Every user-facing request for an external provider credential must include a clickable Markdown link',
@@ -586,7 +582,7 @@ const REQUIRED_ONBOARDING_MARKERS = [
   'server/API requests 300,000',
   'Build and deployment defaults',
   'Image and file placement defaults',
-  'Use a pure Cloudflare Worker',
+  'Use Hono as the default server framework',
   'Vite assets',
   'Next.js static export',
   'OpenNext',
@@ -696,7 +692,7 @@ function projectDeploymentRoutingLines(projectConfig = {}) {
   return [
     'Current deployment route: direct JoripSpace deployment.',
     '- A normal user request such as "배포해줘" is sufficient. Do not ask the user to choose GitHub or repeat deployment plumbing.',
-    '- Run the required checks, then use the JoripSpace MCP checkpoint/deployment path when active or the installed JoripSpace CLI absolute path returned by `start`. Use a verified pre-existing direct package helper only as conditional legacy compatibility.',
+    '- Run the required checks, then prefer the installed JoripSpace CLI absolute path returned by `start` even when MCP is active; use the MCP checkpoint/deployment path only when CLI installation or execution is unavailable. Use a verified pre-existing direct package helper only as conditional legacy compatibility.',
     '- Do not create a GitHub Actions workflow or push to GitHub solely to deploy while the project connection is absent, disconnected, invalid, or suspended.',
   ];
 }
@@ -709,9 +705,13 @@ function projectSecretManagementLines(projectConfig = {}) {
   ];
 }
 
-function projectAgentsFile() {
+function projectManagedAgentsBlock() {
   return [
     '<!-- joripspace:start -->',
+    '',
+    '**JoripSpace managed instructions**',
+    '',
+    'JoripSpace updates only this marked section. Preserve all user instructions outside it.',
     '',
     JORIPSPACE_CLI_GUIDE,
     '',
@@ -725,29 +725,40 @@ function projectAgentsFile() {
   ].join('\n');
 }
 
+function projectAgentsFile() {
+  return upsertProjectAgentsContent('').trimEnd();
+}
+
 function projectClaudeFile() {
   return '@AGENTS.md\n';
 }
 
 function upsertProjectAgentsContent(existingContent = '', projectConfig = {}) {
-  const managed = projectAgentsFile(projectConfig).trim();
+  const managed = projectManagedAgentsBlock();
   const existing = String(existingContent || '');
-  if (!existing.trim()) return `${managed}\n`;
   const markerPairs = [
     ['<!-- joripspace:start -->', '<!-- joripspace:end -->'],
     ['<!-- joripspace:managed:start -->', '<!-- joripspace:managed:end -->'],
   ];
   let unmanaged = existing;
   for (const [startMarker, endMarker] of markerPairs) {
-    const starts = unmanaged.split(startMarker).length - 1;
-    const ends = unmanaged.split(endMarker).length - 1;
-    if (starts !== ends) throw new Error('AGENTS.md의 JoripSpace 관리 영역이 손상되었습니다.');
-    const escapedStart = startMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const escapedEnd = endMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    unmanaged = unmanaged.replace(new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}`, 'g'), '');
+    while (unmanaged.includes(startMarker) || unmanaged.includes(endMarker)) {
+      const start = unmanaged.indexOf(startMarker);
+      const end = unmanaged.indexOf(endMarker);
+      if (start < 0 || end < start) throw new Error('AGENTS.md의 JoripSpace 관리 영역이 손상되었습니다.');
+      unmanaged = `${unmanaged.slice(0, start)}${unmanaged.slice(end + endMarker.length)}`;
+    }
   }
   const preserved = unmanaged.trim();
-  return preserved ? `${preserved}\n\n${managed}\n` : `${managed}\n`;
+  const userSection = [
+    '# User instructions',
+    '',
+    '<!-- Add the instructions you want the AI to follow below. JoripSpace preserves this section when updating its managed instructions. Do not include passwords, API keys, or other secrets. -->',
+  ].join('\n');
+  const userContent = /^#{1,6}\s+User instructions\s*$/im.test(preserved)
+    ? preserved
+    : preserved ? `${userSection}\n\n${preserved}` : userSection;
+  return `${userContent}\n\n${managed}\n`;
 }
 
 function projectMarkerFile(projectConfig = {}) {
@@ -795,10 +806,10 @@ const REQUIRED_SCRIPTS = {
 const OPTIONAL_DEPLOY_SCRIPT = 'node .joripspace/save.mjs --deploy';
 const ENTRYPOINT_CANDIDATES = ['worker.js', 'src/worker.js', 'src/index.js', 'server.js', 'dist/worker.js'];
 const RECOMMENDED_STACK_ORDER = [
-  '1. Keep the current stack for an existing project unless complexity or compatibility requires a change.',
-  '2. Pure Worker for one simple purpose without shared middleware.',
-  '3. Hono for multiple routes, shared auth/CORS/validation/error handling, hand-written routing growth, or ambiguity.',
-  '4. Re-evaluate and migrate a growing pure Worker to Hono while preserving behavior.',
+  '1. Keep the current stack for an existing project; do not migrate it solely to adopt the new-project default.',
+  '2. Hono is the default server framework for every new project, including single-route and simple services.',
+  '3. Use Hono routes and shared middleware for new-project APIs, authentication, CORS, validation, and error handling.',
+  '4. When the user requests a framework migration, preserve existing URLs, behavior, bindings, and user data.',
   '5. Server-render every user-facing route by default, including login, account, admin, and dashboards.',
   '6. Plain HTML/CSS/JS or Vite frontend structure as appropriate, with server-rendered initial HTML.',
   '7. Other Cloudflare-compatible framework output when the existing project requires it.',
@@ -819,7 +830,7 @@ const IMAGE_AND_FILE_PLACEMENT = {
 const CAPABILITIES = {
   server: {
     available: true,
-    agent_path: 'Use MCP deploy_code for intact small source. Use the installed JoripSpace CLI absolute path for generated bundles and large projects so local bytes are uploaded in verified chunks.',
+    agent_path: 'Prefer the installed JoripSpace CLI absolute path for all deployments, including generated bundles and large projects. Use MCP deploy_code for intact small source only when the CLI cannot run.',
     user_words: '서버 배포 가능'
   },
   db: {
@@ -2376,6 +2387,7 @@ function projectAgentSessionFile(projectConfig = {}) {
 }
 
 module.exports = {
+  JORIPSPACE_TOOL_SELECTION_LINES,
   JORIPSPACE_CLI_GUIDE,
   JORIPSPACE_NPM_ONBOARDING_DOCUMENT,
   JORIPSPACE_AGENT_GUIDE_UPDATED_AT,

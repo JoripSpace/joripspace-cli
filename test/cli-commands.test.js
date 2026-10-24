@@ -118,6 +118,28 @@ test('agent report submits platform diagnostics through the CLI-only API route',
   }
 });
 
+test('report feedback sends the requested category and has specific offline help', async () => {
+  const {root,workspace}=fixture();
+  const calls=[];
+  const api=await apiServer((request,body)=>{
+    calls.push(body); assert.equal(request.url,'/v1/projects/demo/agent-reports');
+    return {status:201,body:{ok:true,report_id:'air_feedback',status:'open'}};
+  });
+  try {
+    writeConnection(workspace,api.url);
+    const help=await runCli(['report','--help','--cwd',workspace]);
+    assert.equal(help.code,0,help.stderr); assert.match(help.stdout,/JoripSpace report/);
+    assert.match(help.stdout,/feedback/); assert.doesNotMatch(help.stdout,/joripspace deploy/);
+    assert.equal(calls.length,0);
+    const result=await runCli(['report','--category','feedback','--summary','배포 이력 검색 개선','--expected','검색과 필터 제공','--cwd',workspace,'--json']);
+    assert.equal(result.code,0,result.stderr); assert.equal(JSON.parse(result.stdout).report_id,'air_feedback');
+    assert.equal(calls[0].category,'feedback'); assert.equal(calls[0].expected,'검색과 필터 제공');
+    assert.doesNotMatch(result.stdout+result.stderr,/project-token/);
+    const invalid=await runCli(['report','--category','unsupported','--summary','test','--cwd',workspace,'--json']);
+    assert.equal(invalid.code,1); assert.equal(calls.length,1);
+  } finally { await api.close(); fs.rmSync(root,{recursive:true,force:true}); }
+});
+
 test('realtime v2 management uses the project credential and encoded key cursor without exposing it', async () => {
   const { root, workspace } = fixture();
   const calls = [];

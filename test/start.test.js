@@ -110,11 +110,15 @@ test('start links an existing project with the canonical three-file contract and
     assert.equal(first.template_choice, null);
     assert.equal(first.context.description, 'Existing service');
     assert.equal(first.context.project_status, 'active');
+    assert.deepEqual(first.context.deployment, { mode: 'direct', connection_status: 'not_connected' });
     assert.equal(readFileSync(path.join(workspace, '.joripspace', 'project'), 'utf8'), 'heyenterc\n');
     assert.equal(fs.existsSync(path.join(workspace, '.joripspace', 'project.json')), false);
     assert.equal(fs.existsSync(path.join(workspace, '.joripspace', 'agent-session.json')), false);
     assert.match(readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8'), /# User instructions/);
     assert.match(readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8'), /joripspace:start/);
+    const agents = readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8');
+    assert.ok(agents.indexOf('# User instructions') < agents.indexOf('<!-- joripspace:start -->'));
+    assert.match(agents, /JoripSpace managed instructions/);
     assert.equal(readFileSync(path.join(workspace, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n\n# Claude notes\n\n');
     assert.match(readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8'), /\.joripspace\/project`/);
 
@@ -971,7 +975,10 @@ test('re-running start preserves a dirty matching GitHub worktree and returns th
       apiToken: 'token',
       apiRequest: apiFor([{ project_slug: 'demo' }], {
         project_slug: 'demo',
-        deployment: { mode: 'github_actions', repository: 'example/project', branch: 'main' },
+        deployment: {
+          mode: 'github_actions', repository: 'example/project', branch: 'main',
+          trigger_type: 'release', workflow_path: '.github/workflows/joripspace-demo-release.yml',
+        },
       }),
       configureMcpServers: () => [],
       dataDir: path.join(root, 'data'),
@@ -982,6 +989,10 @@ test('re-running start preserves a dirty matching GitHub worktree and returns th
     for (const result of [first, second]) {
       assert.equal(result.ok, true);
       assert.equal(result.context.source_sync.status, 'dirty_worktree');
+      assert.deepEqual(result.context.deployment, {
+        mode: 'github_actions', repository: 'example/project', branch: 'main',
+        trigger_type: 'release', workflow_path: '.github/workflows/joripspace-demo-release.yml',
+      });
       assert.equal(result.context.warnings[0].code, 'local_work_preserved');
       assert.equal(result.continue_with, 'cli');
       assert.equal(path.isAbsolute(result.executable), true);

@@ -455,3 +455,24 @@ test('an existing connected start logs in to the OS store without asking for ano
     await f.close();
   }
 });
+
+test('tokens identifies and revokes a connection without printing its secret', async () => {
+  let revoked = false;
+  const f = await fixture((request) => {
+    if (!request.url.startsWith('/v1/me/tokens/')) return undefined;
+    if (revoked) return {status:401,body:{error:{code:'invalid_api_token',message:'Revoked'}}};
+    if (request.method === 'DELETE') { revoked = true; return {body:{token_id:'token-one',status:'revoked'}}; }
+    return {body:{token_id:'token-one',account_id:'account-one'}};
+  });
+  try {
+    assert.equal((await f.run(['login','--code','abcd-efgh-jkmn-pqrs','--api-url',f.url])).code,0);
+    for (const args of [['tokens','current'],['tokens','revoke','--current']]) {
+      const result = await f.run([...args,'--api-url',f.url]);
+      assert.equal(result.code,0,result.stderr);
+      assert.doesNotMatch(result.stdout+result.stderr,/synthetic-secret-token/);
+    }
+    assert.equal(f.calls.at(-1).url,'/v1/me/tokens/current');
+    assert.equal((await f.run(['tokens','current','--api-url',f.url])).code,1);
+    assert.equal((await f.run(['tokens','revoke','--api-url',f.url])).code,1);
+  } finally { await f.close(); }
+});
