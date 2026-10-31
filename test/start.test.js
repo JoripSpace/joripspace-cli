@@ -41,7 +41,9 @@ test('agent onboarding is inline, portable, and executable without shell argumen
     assert.equal(result.schema_version, 1);
     assert.deepEqual(result.read_files, []);
     assert.match(result.instructions, /Read onboarding.read_files explicitly/);
-    assert.doesNotMatch(result.instructions, /https:\/\/api\.joripspace\.com\/onboarding\.md|winget install/);
+    assert.doesNotMatch(result.instructions, /winget install/);
+    assert.match(result.instructions, /If MCP is unavailable, fetch https:\/\/api\.joripspace\.com\/onboarding\.md/);
+    assert.match(result.instructions, /never run it merely to refresh guidance/);
     assert.deepEqual(result.invocation, { command: process.execPath, args: [entry], cwd: specialCwd });
     assert.ok(result.commands.login.args.includes('CONNECTION_CODE'));
     assert.equal(result.commands.resume.args[result.commands.resume.args.indexOf('--cwd') + 1], specialCwd);

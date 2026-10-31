@@ -131,6 +131,7 @@ try {
   report.checks.push('isolated_global_prefix_install_and_command_resolution');
 
   const requests = [];
+  let deploymentMode = 'direct';
   server = createServer(async (request, response) => {
     let body = '';
     for await (const chunk of request) body += chunk;
@@ -141,7 +142,7 @@ try {
         ? { account_id: 'isolated-test-account', projects: [{ project_slug: 'demo', role: 'owner' }] }
         : request.url.startsWith('/v1/projects/demo/realtime-v2/keys')
           ? { keys: [], cursor: null }
-          : { project_slug: 'demo', status: 'active' };
+          : { project_slug: 'demo', status: 'active', deployment: { mode: deploymentMode } };
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(result));
   });
@@ -163,6 +164,28 @@ try {
   report.checks.push('packaged_secret_replacement_exact_stdin_without_value_output_and_project_page');
   mkdirSync(join(project, '.joripspace'));
   writeFileSync(join(project, '.joripspace/project'), 'demo\n');
+  mkdirSync(join(project, 'dist'));
+  writeFileSync(join(project, 'dist/worker.js'), 'export default { fetch() { return new Response("ready"); } };');
+  writeFileSync(join(project, 'package.json'), JSON.stringify({ scripts: { build: 'node -e "process.exit(17)"' } }));
+  const beforePrepare = requests.length;
+  const prepared = await checked([entry, 'deploy', '--prepare', '--dir', 'dist', '--entrypoint', 'worker.js', '--json']);
+  assert.equal(JSON.parse(prepared.stdout).deployed, false);
+  assert.ok(requests.slice(beforePrepare).every(request => request.method === 'GET'));
+  const appPackage = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8'));
+  assert.equal(appPackage.scripts['joripspace:deploy'], 'npm run build && npx --yes @joripspace/cli@latest deploy --cwd . --dir "dist" --entrypoint "worker.js"');
+  const beforeFailedBuild = requests.length;
+  const failedBuild = await run([npm, 'run', 'joripspace:deploy', '--', '--label', 'verify failed build']);
+  assert.notEqual(failedBuild.code, 0);
+  assert.equal(requests.length, beforeFailedBuild);
+  deploymentMode = 'github_actions';
+  const beforeGithubPrepare = readFileSync(join(project, 'package.json'), 'utf8');
+  const githubPrepare = await run([entry, 'deploy', '--prepare', '--dir', 'dist', '--entrypoint', 'worker.js', '--json']);
+  assert.notEqual(githubPrepare.code, 0);
+  assert.match(githubPrepare.stderr, /GitHub deployment is connected/);
+  assert.equal(readFileSync(join(project, 'package.json'), 'utf8'), beforeGithubPrepare);
+  deploymentMode = 'direct';
+  report.checks.push('packaged_deploy_prepare_preserves_build_no_upload_and_failed_build_blocks_deployment');
+  report.checks.push('packaged_deploy_prepare_refuses_github_route_without_overwriting_script');
   const credentialBefore = readFileSync(credentialFile, 'utf8');
   const query = '키 공백+/=';
   await exec(['realtime-v2', 'keys', '--cursor', query, '--json']);

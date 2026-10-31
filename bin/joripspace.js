@@ -218,6 +218,23 @@ async function main() {
         printDeployHelp();
         return;
       }
+      if (flags.prepare) {
+        const project = requireProjectId(flags);
+        const details = await apiRequest(flags, `/v1/projects/${encodeURIComponent(project)}`, {
+          method: 'GET',
+          ...projectAuth(flags),
+        });
+        if (details?.deployment?.mode === 'github_actions') {
+          throw new Error('GitHub deployment is connected: use its configured workflow and trigger');
+        }
+        const result = require('../lib/deploy-prepare').prepareDeployment(
+          projectWorkspaceDir(flags),
+          flags,
+          writeTextAtomically
+        );
+        output(flags, result, (value) => console.log(value.next_action));
+        return;
+      }
       await deployCode(flags);
       return;
     case 'templates':

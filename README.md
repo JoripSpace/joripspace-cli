@@ -88,6 +88,49 @@ Your agent can use the returned guide immediately. If it does not load project f
 
 The guide explains how to find relevant CLI help, MCP tools, and task guidance as needed. You do not have to copy every command option into your project instructions. The [task workflows](https://joripspace.com/en/docs/agent-workflows/) show how to use these tools for deployment, database changes, service connections, and reports.
 
+## Repeatable app deployment
+
+For a direct-deployment project, build the app and identify the bundled Worker entrypoint and assets.
+For example, when the output is `dist/worker.js`, deploy the output directory:
+
+```sh
+npm run build
+joripspace deploy --cwd . --dir dist --entrypoint worker.js --label "Update app" --json
+```
+
+The entrypoint is relative to `--dir`. Select the output directory even when `dist` is ignored at the project root;
+do not remove credential ignore rules or upload an unbundled source that imports excluded `node_modules`.
+Record the verified command in the app's `package.json` so subsequent deployments reuse it:
+
+```json
+{
+  "scripts": {
+    "build": "node build.mjs",
+    "joripspace:deploy": "npm run build && npx --yes @joripspace/cli@latest deploy --cwd . --dir \"dist\" --entrypoint \"worker.js\""
+  }
+}
+```
+
+Merge this into the existing scripts, preserving custom commands and using the actual build output paths.
+When deployment is requested, run `npm run joripspace:deploy -- --label "Describe the change"`.
+The build must succeed before upload. Check deployment status and the production root and changed routes afterward.
+GitHub-connected projects use their configured workflow and trigger instead of this direct-deployment script.
+
+The source tree also implements `deploy --prepare --dir dist --entrypoint worker.js --json`, which validates
+the built output and saves that script without deploying. This option is available in 0.7.0 and later; check the executing
+CLI's `deploy --help` before using it. Existing published CLIs can use the manual script above.
+
+## Refresh guidance without changing app source
+
+`start` can synchronize GitHub source or restore a deployment into an empty workspace. Do not use it merely to
+refresh instructions. For guide-only maintenance, authenticated MCP clients call `prepare_project_workspace`
+with `guide_only: true`; the server omits source sync, legacy migrations, scaffold recovery, and service questions.
+This is a server capability, not a new CLI option.
+
+Without MCP, fetch `https://api.joripspace.com/onboarding.md` and use the section starting at the heading line
+`# JoripSpace project onboarding` to refresh only the bounded JoripSpace block in `AGENTS.md` and maintain the
+`CLAUDE.md` import. Preserve user instructions, the project marker, credentials, and application files.
+
 ## Find a command
 
 Start with the CLI help, then open the help for the command you want to use:
