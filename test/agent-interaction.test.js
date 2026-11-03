@@ -8,7 +8,7 @@ const test = require('node:test');
 
 const CLI = path.resolve(__dirname, '../bin/joripspace.js');
 
-async function fixture(t, { rejectAuth = false, approvalLink = false } = {}) {
+async function fixture(t, { rejectAuth = false, approvalLink = true } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'joripspace-interaction-'));
   const workspace = path.join(root, 'workspace');
   fs.mkdirSync(workspace);
@@ -163,82 +163,62 @@ async function fixture(t, { rejectAuth = false, approvalLink = false } = {}) {
   };
 }
 
-test('terminal login accepts a connection code and reuses its saved login without another prompt', async (t) => {
+test('default terminal login uses approval links and reuses saved authentication', async t => {
   const f = await fixture(t);
-  const first = await f.run(['login', '--legacy-code'], { tty: true, json: false, answer: 'abcd-efgh-jkmn-pqrs' });
+  const first = await f.run(['login'], { tty: true, json: false });
   assert.equal(first.code, 0, first.stderr);
-  assert.match(first.stdout, /Connection code: /);
-  assert.doesNotMatch(first.stdout + first.stderr, /synthetic-interaction-token/);
-  assert.equal(JSON.parse(f.calls[0].body).code, 'ABCD-EFGH-JKMN-PQRS');
+  assert.match(first.stderr, /approval_url/);
+  assert.doesNotMatch(first.stdout + first.stderr, /Connection code:|synthetic-interaction-token/);
   assert.equal(f.browserCalls().length, 1);
   const again = await f.run(['login'], { tty: true, json: false });
   assert.equal(again.code, 0, again.stderr);
-  assert.doesNotMatch(again.stdout, /Connection code: /);
+  assert.equal(f.calls.filter(c => c.url.endsWith('/requests')).length, 1);
   assert.equal(f.browserCalls().length, 1);
-  assert.equal(f.calls.filter((call) => call.url.endsWith('/exchange')).length, 1);
-  assert.equal((await f.run(['me'], { tty: true })).code, 0);
-  const metadata = fs.readFileSync(path.join(f.workspace, '.env.joripspace'), 'utf8');
-  assert.doesNotMatch(metadata, /TOKEN|synthetic-interaction-token/);
 });
 
-test('terminal start still accepts a connection code and continues into project onboarding', async (t) => {
+test('terminal start approves and completes project onboarding in the same process', async t => {
   const f = await fixture(t);
-  const result = await f.run(['start', 'demo', '--legacy-code'], { tty: true, json: false, answer: 'abcd-efgh-jkmn-pqrs' });
-  assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /Connection code: /);
-  assert.match(result.stdout, /Started project: demo/);
-  assert.equal(f.browserCalls().length, 1);
-  assert.equal((await f.run(['start', 'demo'])).code, 0);
-  assert.equal(f.calls.filter((call) => call.url.endsWith('/exchange')).length, 1);
+  const result = await f.run(['start','demo'], { tty:true, json:false });
+  assert.equal(result.code,0,result.stderr);
+  assert.match(result.stdout,/Started project: demo/);
+  assert.match(result.stderr,/approval_url/);
+  assert.equal((await f.run(['start','demo'])).code,0);
+  assert.equal(f.calls.filter(c=>c.url.endsWith('/requests')).length,1);
 });
 
-test('login and start never prompt or open a browser for JSON agents, even with a TTY', async (t) => {
+test('JSON start returns login/resume commands and default JSON login connects without prompting or opening a browser', async t => {
   const f = await fixture(t);
-  for (const tty of [false, true]) {
-    const login = await f.run(['login'], { tty });
-    assert.equal(login.code, 0, login.stderr);
-    assert.equal(JSON.parse(login.stdout).status, 'browser_connection_required');
-    const start = await f.run(['start', 'demo'], { tty });
-    assert.equal(start.code, 2);
-    assert.equal(start.stdout, '');
-    const error = JSON.parse(start.stderr).error;
-    assert.equal(error.code, 'connection_required');
-    assert.match(error.details.login_command, /login --browser --no-open/);
-    assert.match(error.details.resume_command, /start .*demo.*--json/);
+  const start=await f.run(['start','demo'],{tty:true});
+  assert.equal(start.code,2);
+  const error=JSON.parse(start.stderr).error;
+  assert.match(error.details.login_command,/login --no-open/);
+  assert.equal(error.details.next_command.args.includes('--code'),false);
+  assert.deepEqual(f.calls,[]);
+  const login=await f.run(['login'],{tty:true});
+  assert.equal(login.code,0,login.stderr);
+  assert.equal(JSON.parse(login.stdout).status,'connected');
+  assert.match(login.stderr,/approval_url/);
+  assert.equal((await f.run(['start','demo'],{tty:true})).code,0);
+  assert.deepEqual(f.browserCalls(),[]);
+});
+
+test('piped default login completes approval without reading stdin', async t => {
+  const f=await fixture(t);
+  const result=await f.run(['login','--no-open'],{json:false});
+  assert.equal(result.code,0,result.stderr);
+  assert.match(result.stderr,/approval_url/);
+  assert.doesNotMatch(result.stdout,/Connection code:/);
+  assert.deepEqual(f.browserCalls(),[]);
+});
+
+test('removed code options fail without contacting any auth endpoint', async t => {
+  const f=await fixture(t);
+  for(const command of [['login','--code','test'],['login','--legacy-code'],['start','demo','--code','test'],['start','demo','--legacy-code']]) {
+    const result=await f.run(command,{tty:true});
+    assert.notEqual(result.code,0);
+    assert.match(result.stderr,/unsupported_login_option/);
   }
-  assert.deepEqual(f.calls, []);
-  assert.deepEqual(f.browserCalls(), []);
-  const connected = await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'], { tty: true });
-  assert.equal(connected.code, 0, connected.stderr);
-  assert.equal(JSON.parse(connected.stdout).account_id, 'interaction-account');
-  const resumed = await f.run(['start', 'demo'], { tty: true });
-  assert.equal(resumed.code, 0, resumed.stderr);
-  assert.equal(JSON.parse(resumed.stdout).ok, true);
-  assert.deepEqual(f.browserCalls(), []);
-});
-
-test('piped login and start finish with guidance even without JSON or stdin EOF', async (t) => {
-  const f = await fixture(t);
-  const login = await f.run(['login'], { json: false });
-  assert.equal(login.code, 0, login.stderr);
-  assert.match(login.stdout, /login --code/);
-  const start = await f.run(['start', 'demo'], { json: false });
-  assert.equal(start.code, 2);
-  assert.doesNotMatch(login.stdout + start.stdout, /Connection code: /);
-  assert.deepEqual(f.calls, []);
-  assert.deepEqual(f.browserCalls(), []);
-});
-
-test('empty, invalid, and cancelled terminal code entry never reports a successful connection', async (t) => {
-  const f = await fixture(t);
-  for (const command of [['login', '--legacy-code'], ['start', 'demo', '--legacy-code']]) {
-    for (const input of [{ answer: '' }, { answer: 'invalid' }, { eof: true }]) {
-      const result = await f.run(command, { tty: true, json: false, ...input });
-      assert.notEqual(result.code, 0, `${command.join(' ')}: ${JSON.stringify(input)}`);
-      assert.notEqual(result.stderr, '');
-    }
-  }
-  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.calls,[]);
 });
 
 test('every command entry point returns JSON or a JSON error without input in a TTY agent session', async (t) => {
@@ -250,7 +230,7 @@ test('every command entry point returns JSON or a JSON error without input in a 
   for (const name of commands) {
     const result = await f.run([name], { tty: true });
     if (result.code === 0) {
-      assert.equal(result.stderr, '', name);
+      if (name !== 'login') assert.equal(result.stderr, '', name);
       assert.doesNotThrow(() => JSON.parse(result.stdout), name);
     } else {
       assert.equal(result.stdout, '', name);
@@ -264,7 +244,7 @@ test('every command entry point returns JSON or a JSON error without input in a 
 
 test('Free creation returns translatable agreements to a TTY agent and creates only after explicit flags', async (t) => {
   const f = await fixture(t);
-  assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'])).code, 0);
+  assert.equal((await f.run(['login', '--no-open'])).code, 0);
   for (const extra of [[], ['--yes'], ['--agree-noncommercial', '--agree-billing']]) {
     const result = await f.run(['create', '--name', 'my-demo', ...extra], { tty: true });
     assert.equal(result.code, 2);
@@ -297,7 +277,7 @@ test('Free creation returns translatable agreements to a TTY agent and creates o
 
 test('terminal Free creation asks all three English agreements and proceeds only after three yes answers', async (t) => {
   const f = await fixture(t);
-  assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'])).code, 0);
+  assert.equal((await f.run(['login', '--no-open'])).code, 0);
   const result = await f.run(['create', '--name', 'my-demo'], {
     tty: true,
     json: false,
@@ -313,7 +293,7 @@ test('terminal Free creation asks all three English agreements and proceeds only
 
 test('declined, empty, or cancelled terminal agreements never send a create request', async (t) => {
   const f = await fixture(t);
-  assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs'])).code, 0);
+  assert.equal((await f.run(['login', '--no-open'])).code, 0);
   for (const agreements of [['no'], [''], ['yes', 'no'], ['yes', 'yes', 'no'], [null]]) {
     const result = await f.run(['create', '--name', 'my-demo'], { tty: true, json: false, agreements });
     assert.notEqual(result.code, 0);
@@ -335,6 +315,8 @@ test('logged-out creation stops before agreements in human and agent terminals',
           const error = JSON.parse(result.stderr).error;
           assert.equal(error.code, 'connection_required');
           assert.deepEqual(error.details.login_args, ['login', '--json']);
+          assert.equal(error.details.connection_method, 'approval_link');
+          assert.equal(error.details.connect_url, undefined);
         } else assert.match(result.stderr, /joripspace login/);
       }
     }
@@ -381,7 +363,7 @@ test('OS locale controls login guidance and prompts, while unsupported locales u
     answer: 'abcd-efgh-jkmn-pqrs',
   });
   assert.equal(login.code, 0, login.stderr);
-  assert.match(login.stdout, /연결 코드: /);
+  assert.match(login.stderr, /링크를 열어 연결을 승인/);
   const guidance = await f.run(['create', '--name', 'my-demo'], { tty: true, locale: 'ko-KR' });
   assert.equal(guidance.code, 2);
   const details = JSON.parse(guidance.stderr).error.details;

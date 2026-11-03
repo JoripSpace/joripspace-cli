@@ -62,29 +62,10 @@ for (const state of ['denied', 'expired', 'consumed'])
     assert.equal(f.saved.length, 0);
     assert.equal(f.calls.length, 3);
   });
-test('only missing endpoint or explicit lack of capability falls back', async () => {
-  assert.equal(
-    await fixture({ failure: Object.assign(new Error('not found'), { status: 404 }) }).login.login(
-      {},
-      'https://api.joripspace.com'
-    ),
-    false
-  );
-  assert.equal(
-    await fixture({ capability: { approval_link: false } }).login.login({}, 'https://api.joripspace.com'),
-    false
-  );
-  for (const status of [401, 429, 500])
-    await assert.rejects(
-      fixture({ failure: Object.assign(new Error('failure'), { status }) }).login.login(
-        {},
-        'https://api.joripspace.com'
-      )
-    );
-  await assert.rejects(
-    fixture({ failure: Object.assign(new Error('network'), { code: 'request_failed' }) }).login.login(
-      {},
-      'https://api.joripspace.com'
-    )
-  );
+test('unsupported servers and all failures stop without falling back', async () => {
+  for (const capability of [{approval_link:false},{approval_link:true,version:2}])
+    await assert.rejects(fixture({capability}).login.login({},'https://api.joripspace.com'), {code:'approval_link_unsupported'});
+  for (const status of [404,405,401,429,500])
+    await assert.rejects(fixture({failure:Object.assign(new Error('failure'),{status})}).login.login({},'https://api.joripspace.com'));
+  await assert.rejects(fixture({failure:new Error('network')}).login.login({},'https://api.joripspace.com'));
 });

@@ -1,3 +1,4 @@
+const { approvalResponse } = require('./fixtures/approval.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -17,11 +18,11 @@ async function fixture(handler) {
     let body = '';
     for await (const chunk of request) body += chunk;
     calls.push({ url: request.url, authorization: request.headers.authorization, body });
-    let result = handler?.(request);
+    let result = request.url.startsWith('/v1/auth/approval-link/') ? { body: approvalResponse(request, 'synthetic-secret-token') } : handler?.(request);
     if (!result) {
       result = {
         body:
-          request.url === '/v1/auth/connection-code/exchange'
+          request.url === '/v1/auth/approval-link/requests'
             ? { connect_token: 'synthetic-secret-token' }
             : request.url === '/v1/me/projects'
               ? { account_id: 'account-one', projects: [{ project_slug: 'demo', role: 'owner' }] }
@@ -36,6 +37,7 @@ async function fixture(handler) {
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
   const url = `http://127.0.0.1:${server.address().port}`;
   function run(args, cwd = a, extra = {}) {
+    if (args[0] === 'login' && !args.includes('--api-url')) args = [...args, '--api-url', url];
     return new Promise((resolve, reject) => {
       const env = Object.fromEntries(
         Object.entries(process.env).filter(([key]) => !/^(JORIPSPACE_|NODE_OPTIONS$|NODE_PATH$)/i.test(key))
@@ -85,11 +87,11 @@ async function fixture(handler) {
   };
 }
 
-test('one code login is reused by fresh CLI processes and other folders with source-bound metadata', async () => {
+test('one approval login is reused by fresh CLI processes and other folders with source-bound metadata', async () => {
   const f = await fixture();
   try {
     for (const [args, cwd] of [
-      [['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a],
+      [['login', '--no-open', '--api-url', f.url], f.a],
       [['me', '--api-url', f.url], f.b],
       [['start', 'demo', '--api-url', f.url], f.b],
       [['get', '--api-url', 'https://must-not-use.invalid'], f.b],
@@ -98,8 +100,8 @@ test('one code login is reused by fresh CLI processes and other folders with sou
       assert.equal(result.code, 0, result.stderr);
       assert.doesNotMatch(result.stdout + result.stderr, /synthetic-secret-token/);
     }
-    assert.equal(f.calls.filter((call) => call.url === '/v1/auth/connection-code/exchange').length, 1);
-    for (const call of f.calls.slice(1)) assert.equal(call.authorization, 'Bearer synthetic-secret-token');
+    assert.equal(f.calls.filter((call) => call.url === '/v1/auth/approval-link/requests').length, 1);
+    for (const call of f.calls.filter(call => !call.url.startsWith('/v1/auth/'))) assert.equal(call.authorization, 'Bearer synthetic-secret-token');
     for (const directory of [f.a, f.b]) {
       const env = fs.readFileSync(path.join(directory, '.env.joripspace'), 'utf8');
       assert.doesNotMatch(env, /TOKEN|synthetic-secret-token/);
@@ -163,7 +165,7 @@ for (const failure of ['write', 'readback']) {
 test('a locked OS store stops before a network request and exposes no native diagnostics', async () => {
   const f = await fixture();
   try {
-    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
+    assert.equal((await f.run(['login', '--no-open', '--api-url', f.url])).code, 0);
     f.calls.length = 0;
     const result = await f.run(['me', '--api-url', f.url], f.a, { JORIPSPACE_TEST_KEYRING_FAILURE: 'read' });
     assert.equal(JSON.parse(result.stderr).error.code, 'credential_store_unavailable');
@@ -171,8 +173,8 @@ test('a locked OS store stops before a network request and exposes no native dia
     assert.doesNotMatch(result.stdout + result.stderr, /native-secret/);
     const reconnect = await f.run(['login'], f.a, { JORIPSPACE_TEST_KEYRING_FAILURE: 'read' });
     assert.equal(reconnect.code, 0, reconnect.stderr);
-    assert.equal(JSON.parse(reconnect.stdout).status, 'browser_connection_required');
-    assert.equal(f.calls.length, 0);
+    assert.equal(JSON.parse(reconnect.stdout).status, 'connected');
+    assert.equal(f.calls.filter(c=>c.url.endsWith('/requests')).length, 1);
   } finally {
     await f.close();
   }
@@ -187,9 +189,9 @@ for (const failure of ['unavailable', 'read']) {
       fs.writeFileSync(envPath, 'CUSTOM=keep\n');
       const instructions = await f.run(['login', '--api-url', f.url], f.a, unavailable);
       assert.equal(instructions.code, 0, instructions.stderr);
-      assert.equal(JSON.parse(instructions.stdout).status, 'browser_connection_required');
-      assert.equal(f.calls.length, 0);
-      const login = await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a, unavailable);
+      assert.equal(JSON.parse(instructions.stdout).status, 'connected');
+      assert.equal(f.calls.filter(c=>c.url.endsWith('/requests')).length, 1);
+      const login = await f.run(['login', '--no-open', '--api-url', f.url], f.a, unavailable);
       assert.equal(login.code, 0, login.stderr);
       assert.equal(JSON.parse(login.stdout).credential_storage, 'project-env-fallback');
       assert.doesNotMatch(login.stdout + login.stderr, /synthetic-secret-token|native-secret/);
@@ -200,7 +202,7 @@ for (const failure of ['unavailable', 'read']) {
       if (process.platform !== 'win32') assert.equal(fs.statSync(envPath).mode & 0o777, 0o600);
       assert.equal((await f.run(['me', '--api-url', 'https://must-not-use.invalid'], f.a, unavailable)).code, 0);
       assert.equal((await f.run(['start', 'demo'], f.a, unavailable)).code, 0);
-      assert.equal(f.calls.filter(call => call.url.includes('/exchange')).length, 1);
+      assert.equal(f.calls.filter(call => call.url.endsWith('/requests')).length, 1);
       fs.appendFileSync(envPath, 'JORIPSPACE_CONNECT_TOKEN=obsolete-secret\nJORIPSPACE_API_TOKEN=synthetic-secret-token\n');
       const callsBeforeLogout = f.calls.length;
       const logout = await f.run(['logout'], f.a, unavailable);
@@ -213,7 +215,7 @@ for (const failure of ['unavailable', 'read']) {
       assert.match(contents, /^JORIPSPACE_CONNECTION_SOURCE=logged-out$/m);
       assert.notEqual((await f.run(['me'], f.a, unavailable)).code, 0);
       assert.equal(f.calls.length, callsBeforeLogout);
-      assert.equal(JSON.parse((await f.run(['login'], f.a, unavailable)).stdout).status, 'browser_connection_required');
+      assert.equal(JSON.parse((await f.run(['login'], f.a, unavailable)).stdout).status, 'connected');
       assert.equal(fs.readdirSync(f.a).some(name => /tmp-|bak-/.test(name)), false);
     } finally {
       await f.close();
@@ -224,7 +226,7 @@ for (const failure of ['unavailable', 'read']) {
 test('fallback login migrates back to the OS store when it becomes available', async () => {
   const f = await fixture();
   try {
-    const first = await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a,
+    const first = await f.run(['login', '--no-open', '--api-url', f.url], f.a,
       { JORIPSPACE_TEST_KEYRING_FAILURE: 'unavailable' });
     assert.equal(first.code, 0, first.stderr);
     const recovered = await f.run(['login']);
@@ -232,7 +234,7 @@ test('fallback login migrates back to the OS store when it becomes available', a
     assert.equal(JSON.parse(recovered.stdout).credential_storage, 'os-credential-store');
     assert.doesNotMatch(fs.readFileSync(path.join(f.a, '.env.joripspace'), 'utf8'), /TOKEN|synthetic-secret-token/);
     assert.equal((await f.run(['me', '--api-url', f.url], f.b)).code, 0);
-    assert.equal(f.calls.filter(call => call.url.includes('/exchange')).length, 1);
+    assert.equal(f.calls.filter(call => call.url.endsWith('/requests')).length, 1);
   } finally {
     await f.close();
   }
@@ -247,7 +249,7 @@ test('file fallback refuses Git-tracked credentials before exchanging a connecti
       const result = spawnSync('git', args, { cwd: f.a, encoding: 'utf8', windowsHide: true });
       assert.equal(result.status, 0, result.stderr);
     }
-    const result = await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a,
+    const result = await f.run(['login', '--no-open', '--api-url', f.url], f.a,
       { JORIPSPACE_TEST_KEYRING_FAILURE: 'unavailable' });
     assert.notEqual(result.code, 0);
     assert.equal(JSON.parse(result.stderr).error.code, 'project_env_tracked');
@@ -261,9 +263,9 @@ test('file fallback refuses Git-tracked credentials before exchanging a connecti
 test('logout clears both file and OS tokens for the same account, then OS login is reused across folders', async () => {
   const f = await fixture();
   try {
-    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
+    assert.equal((await f.run(['login', '--no-open', '--api-url', f.url])).code, 0);
     const unavailable = { JORIPSPACE_TEST_KEYRING_FAILURE: 'unavailable' };
-    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.a, unavailable)).code, 0);
+    assert.equal((await f.run(['login', '--no-open', '--api-url', f.url], f.a, unavailable)).code, 0);
     fs.appendFileSync(path.join(f.a, '.env.joripspace'), 'JORIPSPACE_API_TOKEN=other-file-token\n');
     const count = f.calls.length;
     const logout = await f.run(['logout']);
@@ -275,7 +277,7 @@ test('logout clears both file and OS tokens for the same account, then OS login 
     assert.notEqual((await f.run(['me'])).code, 0);
     assert.equal(f.calls.length, count);
     assert.equal((await f.run(['logout'])).code, 0);
-    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url], f.b)).code, 0);
+    assert.equal((await f.run(['login', '--no-open', '--api-url', f.url], f.b)).code, 0);
     assert.equal((await f.run(['me'], f.a)).code, 0);
     assert.equal((await f.run(['me', '--api-url', f.url], f.b)).code, 0);
   } finally {
@@ -300,13 +302,13 @@ test('revoked stored tokens stop with 401 and redact echoed credentials from all
       : null
   );
   try {
-    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
+    assert.equal((await f.run(['login', '--no-open', '--api-url', f.url])).code, 0);
     revoked = true;
     const result = await f.run(['me', '--api-url', f.url], f.b);
     assert.equal(result.code, 1);
     assert.equal(JSON.parse(result.stderr).error.status, 401);
     assert.doesNotMatch(result.stdout + result.stderr, /synthetic-secret-token/);
-    assert.equal(f.calls.length, 3);
+    assert.equal(f.calls.length, 5);
   } finally {
     await f.close();
   }
@@ -318,11 +320,11 @@ test('authenticated requests reject redirects before forwarding a stored credent
     redirected ? { status: 307, headers: { location: '/redirect-target' }, body: {} } : null
   );
   try {
-    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
+    assert.equal((await f.run(['login', '--no-open', '--api-url', f.url])).code, 0);
     redirected = true;
     const result = await f.run(['me', '--api-url', f.url], f.b);
     assert.equal(result.code, 1);
-    assert.equal(f.calls.length, 3);
+    assert.equal(f.calls.length, 5);
     assert.equal(
       f.calls.some((call) => call.url === '/redirect-target'),
       false
@@ -337,9 +339,9 @@ test('the existing start flow also logs in, logout is offline, and reconnecting 
   const f = await fixture();
   try {
     const instructions = await f.run(['login', '--api-url', f.url]);
-    assert.equal(JSON.parse(instructions.stdout).status, 'browser_connection_required');
-    assert.equal(f.calls.length, 0);
-    const start = await f.run(['start', 'demo', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url]);
+    assert.equal(JSON.parse(instructions.stdout).status, 'connected');
+    assert.equal(f.calls.filter(c=>c.url.endsWith('/requests')).length, 1);
+    const start = await f.run(['start', 'demo', '--no-open', '--api-url', f.url]);
     assert.equal(start.code, 0, start.stderr);
     assert.equal((await f.run(['start', 'demo', '--api-url', f.url], f.b)).code, 0);
     const before = f.calls.length;
@@ -352,9 +354,9 @@ test('the existing start flow also logs in, logout is offline, and reconnecting 
     assert.equal(JSON.parse(blocked.stderr).error.code, 'connection_required');
     assert.equal(f.calls.length, before);
     assert.equal((await f.run(['logout'], f.b)).code, 0);
-    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
+    assert.equal((await f.run(['login', '--no-open', '--api-url', f.url])).code, 0);
     assert.equal((await f.run(['me'], f.b)).code, 0);
-    assert.equal(f.calls.filter((call) => call.url === '/v1/auth/connection-code/exchange').length, 2);
+    assert.equal(f.calls.filter((call) => call.url === '/v1/auth/approval-link/requests').length, 2);
   } finally {
     await f.close();
   }
@@ -393,7 +395,7 @@ test('logout removes matching current legacy credentials and preserves unrelated
     const env = fs.readFileSync(path.join(f.a, '.env.joripspace'), 'utf8');
     assert.doesNotMatch(env, /synthetic-secret-token|JORIPSPACE_API_TOKEN/);
     assert.match(env, /^CUSTOM=keep$/m);
-    assert.equal(JSON.parse((await f.run(['login'])).stdout).status, 'browser_connection_required');
+    assert.equal(JSON.parse((await f.run(['login'])).stdout).status, 'connected');
   } finally {
     await f.close();
   }
@@ -402,7 +404,7 @@ test('logout removes matching current legacy credentials and preserves unrelated
 test('failed OS credential deletion reports failure and preserves project authentication metadata', async () => {
   const f = await fixture();
   try {
-    assert.equal((await f.run(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', f.url])).code, 0);
+    assert.equal((await f.run(['login', '--no-open', '--api-url', f.url])).code, 0);
     const envPath = path.join(f.a, '.env.joripspace');
     const before = fs.readFileSync(envPath, 'utf8');
     const result = await f.run(['logout'], f.a, { JORIPSPACE_TEST_KEYRING_FAILURE: 'delete' });
@@ -446,7 +448,7 @@ test('an existing connected start logs in to the OS store without asking for ano
     const result = await f.run(['start', 'demo']);
     assert.equal(result.code, 0, result.stderr);
     assert.equal(
-      f.calls.some((call) => call.url === '/v1/auth/connection-code/exchange'),
+      f.calls.some((call) => call.url === '/v1/auth/approval-link/requests'),
       false
     );
     assert.doesNotMatch(fs.readFileSync(envPath, 'utf8'), /synthetic-secret-token|JORIPSPACE_API_TOKEN/);
@@ -465,7 +467,7 @@ test('tokens identifies and revokes a connection without printing its secret', a
     return {body:{token_id:'token-one',account_id:'account-one'}};
   });
   try {
-    assert.equal((await f.run(['login','--code','abcd-efgh-jkmn-pqrs','--api-url',f.url])).code,0);
+    assert.equal((await f.run(['login','--no-open','--api-url',f.url])).code,0);
     for (const args of [['tokens','current'],['tokens','revoke','--current']]) {
       const result = await f.run([...args,'--api-url',f.url]);
       assert.equal(result.code,0,result.stderr);

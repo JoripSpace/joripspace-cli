@@ -90,7 +90,7 @@ test('detailed Secret and recovery rules cannot reintroduce duplicate approval o
   assert.match(text, /Internal generation does not need duplicate consent or browser registration/);
   assert.match(text, /prefer CLI secret generate/);
   assert.match(text, /Prefer CLI secret set/);
-  assert.match(text, /Never request the token itself or pass the code as connect_token/);
+  assert.match(text, /Never request or expose a token; do not browse around or inspect browser storage/);
   assert.doesNotMatch(
     text,
     /제가 직접 확인하고 진행할까요|one-time Secret-work consent|how to paste it back|Ask the user for the MCP\/CLI connection token|prefer MCP automatically/

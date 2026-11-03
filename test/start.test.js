@@ -45,7 +45,9 @@ test('agent onboarding is inline, portable, and executable without shell argumen
     assert.match(result.instructions, /If MCP is unavailable, fetch https:\/\/api\.joripspace\.com\/onboarding\.md/);
     assert.match(result.instructions, /never run it merely to refresh guidance/);
     assert.deepEqual(result.invocation, { command: process.execPath, args: [entry], cwd: specialCwd });
-    assert.ok(result.commands.login.args.includes('CONNECTION_CODE'));
+    assert.ok(result.commands.login.args.includes('--no-open'));
+    assert.ok(!result.commands.login.args.includes('--code'));
+    assert.ok(!('approval_login' in result.commands));
     assert.equal(result.commands.resume.args[result.commands.resume.args.indexOf('--cwd') + 1], specialCwd);
     const help = result.commands.help;
     const run = require('node:child_process').spawnSync(help.command, help.args, { cwd: help.cwd, encoding: 'utf8', windowsHide: true });

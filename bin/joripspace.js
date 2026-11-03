@@ -6,7 +6,6 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const readline = require('node:readline/promises');
 const { formatDeploymentFailure } = require('../lib/deployment-error');
 const {
   printHelp,
@@ -49,7 +48,7 @@ const approvalLogin = createApprovalLogin({
     flags, normalizeConnectToken(token), 'approval-link', apiBaseUrl, options
   ),
 });
-const login = createLoginCommand({ stringFlag, ensureProjectEnvIgnored, projectWorkspaceDir, normalizeCredentialApiUrl, unauthenticatedApiBaseUrl, apiRequest, normalizeConnectToken, normalizeConnectionCode, saveBrowserConnectToken, resolveConnection, approvalLogin, promptConnectionCode, output, browserConnectInstructions, printBrowserConnectInstructions });
+const login = createLoginCommand({ ensureProjectEnvIgnored, projectWorkspaceDir, stringFlag, normalizeCredentialApiUrl, unauthenticatedApiBaseUrl, normalizeConnectToken, saveBrowserConnectToken, resolveConnection, approvalLogin });
 const { legacyCredentialSessionConnection, readProjectMarker } = require('../lib/start');
 const { buildTemplateDeployRequest, listTemplates } = loadTemplatesPackage();
 const templateCommands = createTemplateCommands({
@@ -472,7 +471,7 @@ async function saveBrowserConnectTokenWithOptions(
   const storage = persistProjectConnection(credentialStore, workspaceDir, { ...connection, accountId: body.account_id });
   scrubGlobalSessionToken();
   if (options.output !== false) {
-    const next = source === 'approval-link' ? {
+    const next = {
       status: 'connected',
       next_action: selected ? 'run_start_project' : 'choose_project_then_run_start',
       ...(selected ? { next_command: {
@@ -481,7 +480,7 @@ async function saveBrowserConnectTokenWithOptions(
           '--cwd', workspaceDir, '--api-url', connection.apiBaseUrl, '--json'],
         cwd: workspaceDir,
       } } : {}),
-    } : {};
+    };
     output(flags, { ...body, credential_storage: storage, ...next }, (value) => {
       console.log(message(`Connected: ${value.account_id}`, `연결 완료: ${value.account_id}`));
       console.log(
@@ -1216,43 +1215,6 @@ function isDeploymentMutation(apiPath, method) {
   return method === 'POST' && (/\/deploy(?:[/?]|$)/.test(apiPath) || /\/rollback(?:[/?]|$)/.test(apiPath));
 }
 
-function browserConnectInstructions() {
-  return {
-    status: 'browser_connection_required',
-    next_action: 'run_approval_login_command',
-    approval_login_command: 'joripspace login --browser --no-open --json',
-    connect_url: 'https://joripspace.com/connect/',
-    message: message(
-      'No email address is required. Sign in to JoripSpace in your browser, approve the connection, and copy the one-time code, valid for five minutes.',
-      '이메일 주소는 필요 없습니다. 브라우저에서 JoripSpace에 로그인한 뒤 연결을 승인하고 5분 일회용 연결 코드를 복사하세요.'
-    ),
-    save_command: 'joripspace login --code "CONNECTION_CODE"',
-  };
-}
-
-function printBrowserConnectInstructions(value) {
-  console.log(
-    message(
-      'Approve the JoripSpace connection in your browser.',
-      '브라우저에서 JoripSpace 연결을 승인하세요.'
-    )
-  );
-  console.log(
-    message(
-      'No email address or email verification is required.',
-      '이메일 주소 입력이나 메일 확인은 필요 없습니다.'
-    )
-  );
-  console.log(message(`Connection page: ${value.connect_url}`, `연결 페이지: ${value.connect_url}`));
-  console.log(
-    message(
-      'After approval, exchange the displayed five-minute one-time code using this command.',
-      '승인 후 화면에 표시되는 5분 일회용 연결 코드를 아래 명령으로 교환하세요.'
-    )
-  );
-  console.log(value.save_command);
-}
-
 function normalizeConnectToken(value) {
   const token = String(value || '').trim();
   if (!token) {
@@ -1266,27 +1228,12 @@ function normalizeConnectToken(value) {
   ) {
     throw new Error(
       message(
-        'Browser cookies, Bearer strings, empty placeholders, and test values cannot be used as CLI connection tokens. Get a new connection token at /connect/.',
-        '브라우저 쿠키, Bearer 문자열, 빈 자리표시자, 테스트 값은 CLI 연결 토큰으로 사용할 수 없습니다. /connect/에서 새 연결 토큰을 발급하세요.'
+        'Browser cookies, Bearer strings, empty placeholders, and test values cannot be used as CLI connection tokens. Run login to approve a new connection.',
+        '브라우저 쿠키, Bearer 문자열, 빈 자리표시자, 테스트 값은 CLI 연결 토큰으로 사용할 수 없습니다. login을 실행해 새 연결을 승인하세요.'
       )
     );
   }
   return token;
-}
-
-function normalizeConnectionCode(value) {
-  const normalized = String(value || '')
-    .replace(/[\s-]+/g, '')
-    .toUpperCase();
-  if (!/^[0-9A-HJKMNP-TV-Z]{16}$/.test(normalized)) {
-    throw new Error(
-      message(
-        'The connection code must be the 16-character alphanumeric value shown on the connection page.',
-        '연결 코드는 화면에 표시된 16자리 영숫자 값이어야 합니다.'
-      )
-    );
-  }
-  return normalized.match(/.{1,4}/g).join('-');
 }
 
 function parseArgs(argv) {
@@ -1611,77 +1558,12 @@ function canonicalWorkspaceEntry(directory, expected) {
 }
 
 async function connectForStart(flags, context) {
-  let connectionCode = stringFlag(flags, 'code');
-  if (!connectionCode) {
-    const base = normalizeCredentialApiUrl(unauthenticatedApiBaseUrl(flags));
-    if (!flags['legacy-code']) {
-      if (flags.json || !process.stdin.isTTY || !process.stdout.isTTY) {
-        return { ...resolveConnection(flags), approvalLinkSupported: true };
-      }
-      if (await approvalLogin.login({ ...flags, cwd: context.cwd }, base, { output: false })) return resolveConnection(flags);
-    }
-    connectionCode = await promptConnectionCode(flags);
-    if (connectionCode === null) return resolveConnection(flags);
+  if (flags.code !== undefined || flags['legacy-code'] !== undefined) {
+    throw Object.assign(new Error('Run login to approve the connection in your browser.'), { code: 'unsupported_login_option' });
   }
-
-  const exchangeApiBaseUrl = normalizeCredentialApiUrl(unauthenticatedApiBaseUrl(flags));
-  ensureProjectEnvIgnored(context.cwd);
-  const exchange = await apiRequest(flags, '/v1/auth/connection-code/exchange', {
-    method: 'POST',
-    body: { code: normalizeConnectionCode(connectionCode) },
-    apiBaseUrl: exchangeApiBaseUrl,
-  });
-  const exchangedToken = normalizeConnectToken(exchange.connect_token);
-  await saveBrowserConnectTokenWithOptions(
-    { ...flags, cwd: context.cwd },
-    exchangedToken,
-    'connection-code',
-    exchangeApiBaseUrl,
-    { output: false }
-  );
+  if (flags.json || !process.stdin.isTTY || !process.stdout.isTTY) return resolveConnection(flags);
+  await approvalLogin.login({ ...flags, cwd: context.cwd }, normalizeCredentialApiUrl(unauthenticatedApiBaseUrl(flags)), { output: false });
   return resolveConnection({ ...flags, cwd: context.cwd });
-}
-
-async function promptConnectionCode(flags) {
-  if (flags.json || !process.stdin.isTTY || !process.stdout.isTTY) return null;
-  const instructions = browserConnectInstructions();
-  console.log(
-    message(
-      'Approve the JoripSpace connection in your browser.',
-      '브라우저에서 JoripSpace 연결을 승인하세요.'
-    )
-  );
-  console.log(
-    message(`Connection page: ${instructions.connect_url}`, `연결 페이지: ${instructions.connect_url}`)
-  );
-  console.log(
-    message(
-      'After approval, paste the displayed five-minute one-time code into this terminal.',
-      '승인 후 표시된 5분 일회용 연결 코드를 이 터미널에 붙여 넣으세요.'
-    )
-  );
-  openExternalUrl(instructions.connect_url);
-  const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const cancellation = new AbortController();
-  prompt.once('close', () => cancellation.abort());
-  try {
-    return await prompt.question(message('Connection code: ', '연결 코드: '), {
-      signal: cancellation.signal,
-    });
-  } catch (error) {
-    if (error?.code !== 'ABORT_ERR') throw error;
-    const cancelled = new Error(
-      message(
-        'Connection code entry was cancelled. Run login again.',
-        '연결 코드 입력이 취소되었습니다. login을 다시 실행하세요.'
-      )
-    );
-    cancelled.code = 'connection_required';
-    cancelled.exitCode = 2;
-    throw cancelled;
-  } finally {
-    prompt.close();
-  }
 }
 
 function openExternalUrl(url) {

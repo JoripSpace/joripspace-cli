@@ -1,3 +1,4 @@
+const { approvalResponse } = require('./fixtures/approval.cjs');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -737,7 +738,7 @@ test('invalid connection-token placeholders are rejected before network access',
       'secret\ninjected',
       'secret\tinjected',
     ]) {
-      const result = await runCli(['login', '--connect-token', token, '--cwd', workspace, '--json']);
+      const result = await runCli(['login', '--api-token', token, '--cwd', workspace, '--json']);
       assert.equal(result.code, 1, token);
       assert.equal(result.stdout, '');
       assert.equal(JSON.parse(result.stderr).error.code, 'invalid_arguments');
@@ -781,7 +782,7 @@ test('login and link reject a tracked project environment before network access'
     git(workspace, ['add', '.env.joripspace']);
     const before = fs.readFileSync(envPath, 'utf8');
     for (const command of [
-      ['login', '--connect-token', 'valid-connect-token', '--cwd', workspace, '--api-url', api.url, '--json'],
+      ['login', '--api-token', 'valid-connect-token', '--cwd', workspace, '--api-url', api.url, '--json'],
       [
         'link',
         '--project',
@@ -890,21 +891,20 @@ test('connect_token-only global session migrates during link and is scrubbed', a
   }
 });
 
-test('login code exchange and token verification keep one process-environment API URL record', async () => {
+test('default login approval and token verification keep one process-environment API URL record', async () => {
   const { root, workspace } = fixture();
   const calls = [];
   const api = await apiServer((request) => {
     calls.push(request.url);
-    if (request.url === '/v1/auth/connection-code/exchange') {
-      return { body: { connect_token: 'exchanged-project-token' } };
-    }
+    const approval = approvalResponse(request, 'exchanged-project-token');
+    if (approval) return { body: approval };
     if (request.url === '/v1/me/projects') {
       return { body: { account_id: 'account-code', projects: [] } };
     }
     return { status: 404, body: {} };
   });
   try {
-    const result = await runCli(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--cwd', workspace, '--json'], {
+    const result = await runCli(['login', '--no-open', '--cwd', workspace, '--json'], {
       env: {
         JORIPSPACE_API_URL: api.url,
         JORIPSPACE_API_BASE_URL: '',
@@ -912,7 +912,7 @@ test('login code exchange and token verification keep one process-environment AP
       },
     });
     assert.equal(result.code, 0, result.stderr);
-    assert.deepEqual(calls, ['/v1/auth/connection-code/exchange', '/v1/me/projects']);
+    assert.deepEqual(calls, ['/v1/auth/approval-link/capabilities', '/v1/auth/approval-link/requests', '/v1/auth/approval-link/status', '/v1/me/projects']);
     const env = fs.readFileSync(path.join(workspace, '.env.joripspace'), 'utf8');
     assert.match(env, new RegExp(`^JORIPSPACE_API_BASE_URL=${escapeRegex(api.url)}$`, 'm'));
     assert.doesNotMatch(env, /exchanged-project-token|^JORIPSPACE_API_TOKEN=/m);
@@ -944,14 +944,14 @@ test('start selection and conflict states use a nonzero incomplete exit code', a
     const connectionError = JSON.parse(noConnection.stderr);
     assert.equal(connectionError.error.code, 'connection_required');
     assert.equal(path.isAbsolute(connectionError.error.details.executable), true);
-    assert.match(connectionError.error.details.login_command, / login --browser --no-open --project "demo" /);
+    assert.match(connectionError.error.details.login_command, / login --no-open --project "demo" /);
     assert.match(connectionError.error.details.resume_command, / start "demo" --cwd /);
     assert.equal(connectionError.error.details.continue_with, 'cli');
     assert.equal(connectionError.error.details.onboarding.schema_version, 1);
     assert.deepEqual(connectionError.error.details.onboarding.read_files, []);
-    assert.match(connectionError.error.details.onboarding.instructions, /five-minute one-time code/);
+    assert.match(connectionError.error.details.onboarding.instructions, /No code entry is required/);
     assert.equal(
-      connectionError.error.details.onboarding.commands.login.args.includes('CONNECTION_CODE'),
+      connectionError.error.details.onboarding.commands.login.args.includes('--no-open'),
       true
     );
 
@@ -972,15 +972,13 @@ test('start selection and conflict states use a nonzero incomplete exit code', a
   }
 });
 
-test('start exchanges a connection code and continues in the same process without exposing the token', async () => {
+test('default login then start completes onboarding without exposing the token', async () => {
   const { root, workspace } = fixture();
   const calls = [];
   const api = await apiServer((request, body) => {
     calls.push({ url: request.url, authorization: request.headers.authorization || '', body });
-    if (request.url === '/v1/auth/connection-code/exchange') {
-      assert.deepEqual(body, { code: 'ABCD-EFGH-JKMN-PQRS' });
-      return { body: { connect_token: 'same-process-secret-token' } };
-    }
+    const approval = approvalResponse(request, 'same-process-secret-token');
+    if (approval) return { body: approval };
     if (request.url === '/v1/me/projects') {
       assert.equal(request.headers.authorization, 'Bearer same-process-secret-token');
       return {
@@ -1006,8 +1004,10 @@ test('start exchanges a connection code and continues in the same process withou
     return { status: 404, body: { message: `unhandled ${request.url}` } };
   });
   try {
+    const login = await runCli(['login', '--no-open', '--cwd', workspace, '--api-url', api.url, '--json'], { env: { HOME: path.join(root, 'home'), USERPROFILE: path.join(root, 'home'), JORIPSPACE_API_TOKEN: '', JORIPSPACE_CONNECT_TOKEN: '' } });
+    assert.equal(login.code, 0, login.stderr);
     const result = await runCli(
-      ['start', 'Demo', '--code', 'abcd-efgh-jkmn-pqrs', '--cwd', workspace, '--api-url', api.url, '--json'],
+      ['start', 'Demo', '--cwd', workspace, '--api-url', api.url, '--json'],
       {
         env: {
           HOME: path.join(root, 'home'),

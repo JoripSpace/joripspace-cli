@@ -147,7 +147,7 @@ try {
     }
     const result = request.url === '/v1/projects/demo/agent-reports'
       ? { ok: true, report_id: 'air_packaged_feedback', status: 'open' }
-      : request.url === '/v1/auth/connection-code/exchange'
+      : request.url === '/v1/auth/approval-link/requests'
       ? { connect_token: 'isolated-test-connection-token' }
       : request.url === '/v1/me/projects'
         ? { account_id: 'isolated-test-account', projects: [{ project_slug: 'demo', role: 'owner' }] }
@@ -159,7 +159,7 @@ try {
   });
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   const url = `http://127.0.0.1:${server.address().port}`;
-  const login = await exec(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', url, '--json']);
+  const login = await exec(['login', '--no-open', '--api-url', url, '--json']);
   assert.doesNotMatch(login.stdout + login.stderr, /isolated-test-connection-token/);
   const credentialFile = join(project, '.env.joripspace');
   assert.ok(existsSync(credentialFile), 'Login must use caller cwd');
@@ -219,12 +219,12 @@ try {
   mkdirSync(nested);
   await checked([entry, 'get', '--json'], nested);
   assert.equal(readFileSync(credentialFile, 'utf8'), credentialBefore);
-  assert.equal(requests.filter(request => request.url === '/v1/auth/connection-code/exchange').length, 1);
+  assert.equal(requests.filter(request => request.url === '/v1/auth/approval-link/requests').length, 1);
   assert.ok(requests.some(request => request.url === `/v1/projects/demo/realtime-v2/keys?after=${encodeURIComponent(query)}`));
-  for (const request of requests.filter(request => request.url !== '/v1/auth/connection-code/exchange')) {
+  for (const request of requests.filter(request => !request.url.startsWith('/v1/auth/'))) {
     assert.equal(request.authorization, 'Bearer isolated-test-connection-token');
   }
-  report.checks.push('loopback_code_exchange_persistent_auth_caller_cwd_explicit_cwd_parent_marker_korean_space_arguments');
+  report.checks.push('loopback_approval_login_persistent_auth_caller_cwd_explicit_cwd_parent_marker_korean_space_arguments');
   const authless = join(temporary, '연결 없는 프로젝트');
   mkdirSync(authless);
   const denied = await run([entry, 'start', 'demo', '--json'], authless);
@@ -241,13 +241,13 @@ try {
   assert.equal(loggedOut.code, 1);
   assert.equal(requests.length, beforeLogout, 'Logout and missing authentication must stay offline');
   assert.deepEqual(JSON.parse(readFileSync(env.JORIPSPACE_TEST_KEYRING_FILE, 'utf8')), {});
-  await exec(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', url, '--json']);
+  await exec(['login', '--no-open', '--api-url', url, '--json']);
   await checked([entry, 'get', '--json']);
   report.checks.push('packaged_logout_deletes_credentials_offline_and_login_restores_reuse');
 
   env.JORIPSPACE_TEST_KEYRING_FAILURE = 'unavailable';
   try {
-    const fallback = await exec(['login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', url, '--json']);
+    const fallback = await exec(['login', '--no-open', '--api-url', url, '--json']);
     assert.equal(JSON.parse(fallback.stdout).credential_storage, 'project-env-fallback');
     assert.doesNotMatch(fallback.stdout + fallback.stderr, /isolated-test-connection-token/);
     assert.match(readFileSync(credentialFile, 'utf8'), /^JORIPSPACE_API_TOKEN=isolated-test-connection-token$/m);
@@ -262,13 +262,13 @@ try {
     delete env.JORIPSPACE_TEST_KEYRING_FAILURE;
   }
   assert.equal((await run([entry, 'get', '--json'])).code, 1, 'Logout must remove both file and OS credentials');
-  await checked([entry, 'login', '--code', 'abcd-efgh-jkmn-pqrs', '--api-url', url, '--json'], authless);
+  await checked([entry, 'login', '--no-open', '--api-url', url, '--json'], authless);
   await checked([entry, 'get', '--json'], project);
   assert.doesNotMatch(readFileSync(credentialFile, 'utf8'), /TOKEN|isolated-test-connection-token/);
   report.checks.push('packaged_file_fallback_logout_clears_both_stores_and_os_login_is_shared');
 
   await exec(['logout', '--json']);
-  const linked = await exec(['login', '--browser', '--no-open', '--api-url', url, '--json']);
+  const linked = await exec(['login', '--no-open', '--api-url', url, '--json']);
   assert.equal(JSON.parse(linked.stderr).status, 'approval_pending');
   const linkedResult = JSON.parse(linked.stdout);
   assert.equal(linkedResult.status, 'connected');
