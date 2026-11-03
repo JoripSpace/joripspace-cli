@@ -301,3 +301,10 @@ Third-party dependencies retain their original licenses and copyrights. See [Thi
 - Platform problems and suggestions: use `joripspace report` from a connected project.
 - CLI repository issues: [GitHub Issues](https://github.com/JoripSpace/joripspace-cli/issues)
 - Email: [support@cosmosfarm.com](mailto:support@cosmosfarm.com)
+
+## Feedback (CLI 0.8.0)
+
+`joripspace feedback --project PROJECT --summary "SUGGESTION" --json` wraps
+`joripspace report --category feedback` with the same arguments, authentication, submission and response.
+Use `joripspace feedback --help` for options. MCP sessions also submit through this CLI command.
+Older CLIs can continue using `report --category feedback`.

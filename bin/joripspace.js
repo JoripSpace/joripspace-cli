@@ -162,8 +162,8 @@ async function main() {
     return;
   }
 
-  if (command === 'report' && (flags.help || flags.h)) {
-    printReportHelp();
+  if ((command === 'report' || command === 'feedback') && (flags.help || flags.h)) {
+    printReportHelp(command);
     return;
   }
 
@@ -216,6 +216,9 @@ async function main() {
       return;
     case 'report':
       await reportAgentIssue(flags);
+      return;
+    case 'feedback':
+      await reportAgentIssue({ ...flags, category: 'feedback' });
       return;
     case 'db':
       await dbCommand(rest, flags);

@@ -118,11 +118,13 @@ test('agent report submits platform diagnostics through the CLI-only API route',
   }
 });
 
-test('report feedback sends the requested category and has specific offline help', async () => {
+test('feedback wraps report --category feedback with identical requests, responses and offline help', async () => {
   const {root,workspace}=fixture();
   const calls=[];
   const api=await apiServer((request,body)=>{
     calls.push(body); assert.equal(request.url,'/v1/projects/demo/agent-reports');
+    assert.equal(request.headers.authorization,'Bearer project-token');
+    assert.equal(request.headers['x-joripspace-session-context'],'cli');
     return {status:201,body:{ok:true,report_id:'air_feedback',status:'open'}};
   });
   try {
@@ -135,8 +137,28 @@ test('report feedback sends the requested category and has specific offline help
     assert.equal(result.code,0,result.stderr); assert.equal(JSON.parse(result.stdout).report_id,'air_feedback');
     assert.equal(calls[0].category,'feedback'); assert.equal(calls[0].expected,'검색과 필터 제공');
     assert.doesNotMatch(result.stdout+result.stderr,/project-token/);
+    const feedbackHelp=await runCli(['feedback','--help','--cwd',workspace]);
+    assert.equal(feedbackHelp.code,0,feedbackHelp.stderr);
+    assert.match(feedbackHelp.stdout,/JoripSpace feedback/);
+    assert.match(feedbackHelp.stdout,/wraps report --category feedback/);
+    assert.equal(calls.length,1);
+    const feedback=await runCli(['feedback','--summary','배포 이력 검색 개선','--expected','검색과 필터 제공','--cwd',workspace,'--json']);
+    assert.equal(feedback.code,0,feedback.stderr);
+    assert.deepEqual(JSON.parse(feedback.stdout),JSON.parse(result.stdout));
+    assert.deepEqual(calls[1],calls[0]);
+    assert.doesNotMatch(feedback.stdout+feedback.stderr,/project-token/);
+    const fixedCategory=await runCli(['feedback','--category','bug','--message','Suggestion','--details','Context','--actual','Current','--error-code','test_code','--cwd',workspace,'--json']);
+    assert.equal(fixedCategory.code,0,fixedCategory.stderr);
+    assert.equal(calls[2].category,'feedback');
+    assert.equal(calls[2].summary,'Suggestion');
+    assert.equal(calls[2].details,'Context');
+    assert.equal(calls[2].actual,'Current');
+    assert.equal(calls[2].error_code,'test_code');
+    const missingSummary=await runCli(['feedback','--cwd',workspace,'--json']);
+    assert.equal(missingSummary.code,1);
+    assert.match(missingSummary.stdout+missingSummary.stderr,/requires --summary/);
     const invalid=await runCli(['report','--category','unsupported','--summary','test','--cwd',workspace,'--json']);
-    assert.equal(invalid.code,1); assert.equal(calls.length,1);
+    assert.equal(invalid.code,1); assert.equal(calls.length,3);
   } finally { await api.close(); fs.rmSync(root,{recursive:true,force:true}); }
 });
 

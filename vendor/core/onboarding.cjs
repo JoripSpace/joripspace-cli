@@ -15,7 +15,7 @@ const JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES = [
   '.joripspace/local-backups/',
 ];
 const JORIPSPACE_ONBOARDING_GITIGNORE_REMOVALS = ['.joripspace/agent-session.json'];
-const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-11-03T23:01:00+09:00';
+const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-11-04T00:00:46+09:00';
 const JORIPSPACE_WORKFLOW_POLICY = Object.freeze({
   target: 'joripspace',
   guide_required: true,
@@ -120,7 +120,7 @@ const BEGINNER_ONBOARDING_LINES = [
   '- If the user says they do not know, give 2-3 simple examples, recommend one default, and continue.',
   '- Explain only the next useful action. Avoid long technical explanations unless the user asks.',
   '- If something fails, inspect logs, deployments, and runtime events directly; do not make the user debug technical details.',
-  '- For a user-requested platform problem report or improvement suggestion, submit one incident with the installed CLI `report` command after reading report --help. Use category problem or bug for failures, feedback for improvement suggestions. Include a summary, expected and actual behavior, available error code, and non-secret details. Do not send unsolicited reports or include credentials, personal data, or duplicates. Report the returned report_id; an uncertain response is not a confirmed submission.',
+  '- For a user-requested platform problem report or improvement suggestion, submit one incident with the installed CLI `report` command for problems or bugs, or the `feedback` command for suggestions, after reading the corresponding --help. CLI feedback wraps report --category feedback; use that legacy form when feedback is unavailable. MCP sessions also submit through CLI feedback, not a direct MCP tool. Include a summary, expected and actual behavior, available error code, and non-secret details. Do not send unsolicited reports or include credentials, personal data, or duplicates. Report the returned report_id; an uncertain response is not a confirmed submission.',
 ];
 
 const USER_CHOICE_PRESENTATION_RULE_LINES = [

@@ -106,7 +106,7 @@ try {
   const original = process.env.JORIPSPACE_BASELINE_CLI;
   const reference = original ? resolve(original) : join(root, 'bin', 'joripspace.js');
   report.reference = original ? 'original CLI' : 'standalone source CLI';
-  for (const args of [['--help'], ['--version'], ['version'], ['deploy', '--help'], ['templates', '--json'], ['realtime-v2', 'docs', '--json'], ['unknown-command', '--json'], ['start', '--json']]) {
+  for (const args of [['--help'], ['--version'], ['version'], ['report', '--help'], ['feedback', '--help'], ['deploy', '--help'], ['templates', '--json'], ['realtime-v2', 'docs', '--json'], ['unknown-command', '--json'], ['start', '--json']]) {
     const expected = await run([reference, ...args]);
     const actual = await run([entry, ...args]);
     assert.deepEqual(actual, expected, args.join(' '));
@@ -145,7 +145,9 @@ try {
       response.end(JSON.stringify(result));
       return;
     }
-    const result = request.url === '/v1/auth/connection-code/exchange'
+    const result = request.url === '/v1/projects/demo/agent-reports'
+      ? { ok: true, report_id: 'air_packaged_feedback', status: 'open' }
+      : request.url === '/v1/auth/connection-code/exchange'
       ? { connect_token: 'isolated-test-connection-token' }
       : request.url === '/v1/me/projects'
         ? { account_id: 'isolated-test-account', projects: [{ project_slug: 'demo', role: 'owner' }] }
@@ -171,6 +173,17 @@ try {
   assert.equal(JSON.parse(secretSet.stdout).secret_management_url, 'https://joripspace.com/projects/demo/?tab=secrets');
   assert.ok(requests.some(request => request.url === '/v1/projects/demo/secrets' && JSON.parse(request.body).value === secretValue));
   report.checks.push('packaged_secret_replacement_exact_stdin_without_value_output_and_project_page');
+  const feedbackArgs = ['--project', 'demo', '--summary', 'History filters', '--details', 'Filter by status', '--expected', 'Filtered results', '--actual', 'All results', '--json'];
+  const reportResult = await checked([entry, 'report', '--category', 'feedback', ...feedbackArgs]);
+  const feedbackResult = await checked([entry, 'feedback', ...feedbackArgs]);
+  assert.deepEqual(JSON.parse(feedbackResult.stdout), JSON.parse(reportResult.stdout));
+  assert.equal(JSON.parse(feedbackResult.stdout).report_id, 'air_packaged_feedback');
+  const feedbackRequests = requests.filter(request => request.url === '/v1/projects/demo/agent-reports');
+  assert.equal(feedbackRequests.length, 2);
+  assert.deepEqual(feedbackRequests[1], feedbackRequests[0]);
+  assert.equal(JSON.parse(feedbackRequests[1].body).category, 'feedback');
+  assert.doesNotMatch(feedbackResult.stdout + feedbackResult.stderr, /isolated-test-connection-token/);
+  report.checks.push('packaged_feedback_wraps_report_with_identical_payload_authentication_and_response');
   mkdirSync(join(project, '.joripspace'));
   writeFileSync(join(project, '.joripspace/project'), 'demo\n');
   mkdirSync(join(project, 'dist'));
