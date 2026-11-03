@@ -136,6 +136,15 @@ try {
     let body = '';
     for await (const chunk of request) body += chunk;
     requests.push({ method: request.method, url: request.url, body, authorization: request.headers.authorization });
+    if (request.url.startsWith('/v1/auth/approval-link/')) {
+      const id = 'r'.repeat(48);
+      const result = request.url.endsWith('/capabilities') ? { approval_link: true, version: 1 }
+        : request.url.endsWith('/requests') ? { request_id: id, request_secret: 's'.repeat(48), approval_url: `https://joripspace.com/connect/device/?request=${id}`, expires_at: new Date(Date.now() + 300000).toISOString() }
+          : { status: 'connected', connect_token: 'isolated-test-connection-token' };
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(result));
+      return;
+    }
     const result = request.url === '/v1/auth/connection-code/exchange'
       ? { connect_token: 'isolated-test-connection-token' }
       : request.url === '/v1/me/projects'
@@ -244,6 +253,17 @@ try {
   await checked([entry, 'get', '--json'], project);
   assert.doesNotMatch(readFileSync(credentialFile, 'utf8'), /TOKEN|isolated-test-connection-token/);
   report.checks.push('packaged_file_fallback_logout_clears_both_stores_and_os_login_is_shared');
+
+  await exec(['logout', '--json']);
+  const linked = await exec(['login', '--browser', '--no-open', '--api-url', url, '--json']);
+  assert.equal(JSON.parse(linked.stderr).status, 'approval_pending');
+  const linkedResult = JSON.parse(linked.stdout);
+  assert.equal(linkedResult.status, 'connected');
+  assert.equal(linkedResult.next_action, 'run_start_project');
+  assert.equal(linkedResult.next_command.command, process.execPath);
+  assert.doesNotMatch(linked.stdout + linked.stderr, /isolated-test-connection-token|ssssssss/);
+  await checked([entry, 'get', '--json']);
+  report.checks.push('packaged_approval_link_public_event_private_polling_secret_next_action_and_saved_login_reuse');
 
   // Exercise cancellation while a local HTTP request is pending, without a browser or real credentials.
   server.removeAllListeners('request');

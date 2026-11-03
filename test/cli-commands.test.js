@@ -922,7 +922,7 @@ test('start selection and conflict states use a nonzero incomplete exit code', a
     const connectionError = JSON.parse(noConnection.stderr);
     assert.equal(connectionError.error.code, 'connection_required');
     assert.equal(path.isAbsolute(connectionError.error.details.executable), true);
-    assert.match(connectionError.error.details.login_command, / login --code "CONNECTION_CODE" /);
+    assert.match(connectionError.error.details.login_command, / login --browser --no-open --project "demo" /);
     assert.match(connectionError.error.details.resume_command, / start "demo" --cwd /);
     assert.equal(connectionError.error.details.continue_with, 'cli');
     assert.equal(connectionError.error.details.onboarding.schema_version, 1);

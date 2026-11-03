@@ -40,6 +40,16 @@ const { createCredentialStore, normalizeCredentialApiUrl } = require('../lib/cre
 const credentialStore = createCredentialStore();
 const { persistProjectConnection } = require('../lib/connection-persistence');
 const { createStartProjectCommand } = require('../lib/start-command');
+const { createApprovalLogin } = require('../lib/approval-login');
+const { createLoginCommand } = require('../lib/login-command');
+const approvalLogin = createApprovalLogin({
+  apiRequest,
+  openExternalUrl,
+  saveToken: (flags, token, apiBaseUrl, options) => saveBrowserConnectTokenWithOptions(
+    flags, normalizeConnectToken(token), 'approval-link', apiBaseUrl, options
+  ),
+});
+const login = createLoginCommand({ stringFlag, ensureProjectEnvIgnored, projectWorkspaceDir, normalizeCredentialApiUrl, unauthenticatedApiBaseUrl, apiRequest, normalizeConnectToken, normalizeConnectionCode, saveBrowserConnectToken, resolveConnection, approvalLogin, promptConnectionCode, output, browserConnectInstructions, printBrowserConnectInstructions });
 const { legacyCredentialSessionConnection, readProjectMarker } = require('../lib/start');
 const { buildTemplateDeployRequest, listTemplates } = loadTemplatesPackage();
 const templateCommands = createTemplateCommands({
@@ -348,50 +358,6 @@ async function main() {
   }
 }
 
-async function login(flags) {
-  const connectionCode = stringFlag(flags, 'code');
-  if (connectionCode) {
-    ensureProjectEnvIgnored(projectWorkspaceDir(flags, { discover: false }));
-    const exchangeApiBaseUrl = normalizeCredentialApiUrl(unauthenticatedApiBaseUrl(flags));
-    const exchange = await apiRequest(flags, '/v1/auth/connection-code/exchange', {
-      method: 'POST',
-      body: { code: normalizeConnectionCode(connectionCode) },
-      apiBaseUrl: exchangeApiBaseUrl,
-    });
-    const exchangedToken = normalizeConnectToken(exchange.connect_token);
-    await saveBrowserConnectToken(flags, exchangedToken, 'connection-code', exchangeApiBaseUrl);
-    return;
-  }
-  const connectToken =
-    stringFlag(flags, 'connect-token') || stringFlag(flags, 'api-token') || stringFlag(flags, 'token');
-  if (connectToken) {
-    ensureProjectEnvIgnored(projectWorkspaceDir(flags, { discover: false }));
-    await saveBrowserConnectToken(flags, normalizeConnectToken(connectToken));
-    return;
-  }
-  let existing;
-  try {
-    existing = resolveConnection(flags);
-  } catch (error) {
-    if (error.code !== 'credential_store_unavailable') throw error;
-    // Reauthentication can obtain a new token even when an older OS login is inaccessible.
-  }
-  if (existing?.apiToken) {
-    await saveBrowserConnectToken(
-      flags,
-      normalizeConnectToken(existing.apiToken),
-      existing.source,
-      existing.apiBaseUrl
-    );
-    return;
-  }
-  const enteredCode = await promptConnectionCode(flags);
-  if (enteredCode !== null) {
-    await login({ ...flags, code: normalizeConnectionCode(enteredCode) });
-    return;
-  }
-  output(flags, browserConnectInstructions(), printBrowserConnectInstructions);
-}
 
 async function saveBrowserConnectToken(flags, apiToken, source = 'browser-connect', selectedApiBaseUrl = '') {
   return saveBrowserConnectTokenWithOptions(flags, apiToken, source, selectedApiBaseUrl);
@@ -503,7 +469,17 @@ async function saveBrowserConnectTokenWithOptions(
   const storage = persistProjectConnection(credentialStore, workspaceDir, { ...connection, accountId: body.account_id });
   scrubGlobalSessionToken();
   if (options.output !== false) {
-    output(flags, { ...body, credential_storage: storage }, (value) => {
+    const next = source === 'approval-link' ? {
+      status: 'connected',
+      next_action: selected ? 'run_start_project' : 'choose_project_then_run_start',
+      ...(selected ? { next_command: {
+        command: process.execPath,
+        args: [...(process.pkg ? [] : [path.resolve(process.argv[1])]), 'start', selected.project_slug || selected.project_id,
+          '--cwd', workspaceDir, '--api-url', connection.apiBaseUrl, '--json'],
+        cwd: workspaceDir,
+      } } : {}),
+    } : {};
+    output(flags, { ...body, credential_storage: storage, ...next }, (value) => {
       console.log(message(`Connected: ${value.account_id}`, `연결 완료: ${value.account_id}`));
       console.log(
         storage === 'project-env-fallback' ? message(
@@ -1200,6 +1176,7 @@ async function apiRequest(flags, apiPath, options) {
         options.apiToken,
         options.adminToken,
         options.body?.code,
+        options.body?.request_secret,
       ])
     );
     requestError.code = 'request_failed';
@@ -1211,7 +1188,7 @@ async function apiRequest(flags, apiPath, options) {
   const body = text ? parseJson(text) : {};
 
   if (!response.ok) {
-    const safe = redactAuthError(body, [options.apiToken, options.adminToken, options.body?.code]);
+    const safe = redactAuthError(body, [options.apiToken, options.adminToken, options.body?.code, options.body?.request_secret]);
     const message =
       safe?.error?.message || safe?.message || JSON.stringify(safe) || `HTTP ${response.status}`;
     const apiError = new Error(formatDeploymentFailure(message, safe?.error?.details));
@@ -1239,6 +1216,8 @@ function isDeploymentMutation(apiPath, method) {
 function browserConnectInstructions() {
   return {
     status: 'browser_connection_required',
+    next_action: 'run_approval_login_command',
+    approval_login_command: 'joripspace login --browser --no-open --json',
     connect_url: 'https://joripspace.com/connect/',
     message: message(
       'No email address is required. Sign in to JoripSpace in your browser, approve the connection, and copy the one-time code, valid for five minutes.',
@@ -1631,6 +1610,13 @@ function canonicalWorkspaceEntry(directory, expected) {
 async function connectForStart(flags, context) {
   let connectionCode = stringFlag(flags, 'code');
   if (!connectionCode) {
+    const base = normalizeCredentialApiUrl(unauthenticatedApiBaseUrl(flags));
+    if (!flags['legacy-code']) {
+      if (flags.json || !process.stdin.isTTY || !process.stdout.isTTY) {
+        return { ...resolveConnection(flags), approvalLinkSupported: true };
+      }
+      if (await approvalLogin.login({ ...flags, cwd: context.cwd }, base, { output: false })) return resolveConnection(flags);
+    }
     connectionCode = await promptConnectionCode(flags);
     if (connectionCode === null) return resolveConnection(flags);
   }

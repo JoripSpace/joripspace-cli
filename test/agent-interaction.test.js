@@ -8,7 +8,7 @@ const test = require('node:test');
 
 const CLI = path.resolve(__dirname, '../bin/joripspace.js');
 
-async function fixture(t, { rejectAuth = false } = {}) {
+async function fixture(t, { rejectAuth = false, approvalLink = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'joripspace-interaction-'));
   const workspace = path.join(root, 'workspace');
   fs.mkdirSync(workspace);
@@ -40,6 +40,15 @@ async function fixture(t, { rejectAuth = false } = {}) {
     let body = '';
     for await (const chunk of request) body += chunk;
     calls.push({ url: request.url, body });
+    if (approvalLink && request.url.startsWith('/v1/auth/approval-link/')) {
+      const id = 'r'.repeat(48);
+      const result = request.url.endsWith('/capabilities') ? { approval_link: true, version: 1 }
+        : request.url.endsWith('/requests') ? { request_id: id, request_secret: 's'.repeat(48), approval_url: `https://joripspace.com/connect/device/?request=${id}`, expires_at: new Date(Date.now() + 300000).toISOString() }
+          : { status: 'connected', connect_token: 'synthetic-interaction-token' };
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(result));
+      return;
+    }
     if (rejectAuth && request.url === '/v1/me/projects') {
       response.writeHead(401, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ error: { code: 'account_auth_required', message: 'Login required' } }));
@@ -156,7 +165,7 @@ async function fixture(t, { rejectAuth = false } = {}) {
 
 test('terminal login accepts a connection code and reuses its saved login without another prompt', async (t) => {
   const f = await fixture(t);
-  const first = await f.run(['login'], { tty: true, json: false, answer: 'abcd-efgh-jkmn-pqrs' });
+  const first = await f.run(['login', '--legacy-code'], { tty: true, json: false, answer: 'abcd-efgh-jkmn-pqrs' });
   assert.equal(first.code, 0, first.stderr);
   assert.match(first.stdout, /Connection code: /);
   assert.doesNotMatch(first.stdout + first.stderr, /synthetic-interaction-token/);
@@ -174,7 +183,7 @@ test('terminal login accepts a connection code and reuses its saved login withou
 
 test('terminal start still accepts a connection code and continues into project onboarding', async (t) => {
   const f = await fixture(t);
-  const result = await f.run(['start', 'demo'], { tty: true, json: false, answer: 'abcd-efgh-jkmn-pqrs' });
+  const result = await f.run(['start', 'demo', '--legacy-code'], { tty: true, json: false, answer: 'abcd-efgh-jkmn-pqrs' });
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /Connection code: /);
   assert.match(result.stdout, /Started project: demo/);
@@ -194,7 +203,7 @@ test('login and start never prompt or open a browser for JSON agents, even with 
     assert.equal(start.stdout, '');
     const error = JSON.parse(start.stderr).error;
     assert.equal(error.code, 'connection_required');
-    assert.match(error.details.login_command, /login --code/);
+    assert.match(error.details.login_command, /login --browser --no-open/);
     assert.match(error.details.resume_command, /start .*demo.*--json/);
   }
   assert.deepEqual(f.calls, []);
@@ -222,7 +231,7 @@ test('piped login and start finish with guidance even without JSON or stdin EOF'
 
 test('empty, invalid, and cancelled terminal code entry never reports a successful connection', async (t) => {
   const f = await fixture(t);
-  for (const command of [['login'], ['start', 'demo']]) {
+  for (const command of [['login', '--legacy-code'], ['start', 'demo', '--legacy-code']]) {
     for (const input of [{ answer: '' }, { answer: 'invalid' }, { eof: true }]) {
       const result = await f.run(command, { tty: true, json: false, ...input });
       assert.notEqual(result.code, 0, `${command.join(' ')}: ${JSON.stringify(input)}`);
@@ -388,4 +397,27 @@ test('OS locale controls login guidance and prompts, while unsupported locales u
   assert.equal((created.stdout.match(/동의하십니까\?/g) || []).length, 3);
   assert.match(created.stdout, /개인 및 비상업적/);
   assert.match(created.stdout, /프로젝트 생성 완료/);
+});
+
+
+test('approval-link agent login emits next actions, saves authentication and reuses it without a second approval', async (t) => {
+  const f = await fixture(t, { approvalLink: true });
+  const first = await f.run(['login', '--browser', '--no-open']);
+  assert.equal(first.code, 0, first.stderr);
+  const pending = JSON.parse(first.stderr);
+  assert.equal(pending.status, 'approval_pending');
+  assert.equal(pending.next_action, 'ask_user_to_approve_then_wait');
+  assert(pending.approval_url.includes('/connect/device/?request='));
+  const result = JSON.parse(first.stdout);
+  assert.equal(result.status, 'connected');
+  assert.equal(result.next_action, 'run_start_project');
+  assert.equal(result.next_command.command, process.execPath);
+  assert.deepEqual(result.next_command.args.slice(1, 3), ['start', 'demo']);
+  assert.doesNotMatch(first.stdout + first.stderr, /synthetic-interaction-token|ssssssss/);
+  assert.equal(f.browserCalls().length, 0);
+  const again = await f.run(['login', '--browser', '--no-open']);
+  assert.equal(again.code, 0, again.stderr);
+  assert.equal(again.stderr, '');
+  assert.equal(f.calls.filter(call => call.url.endsWith('/approval-link/requests')).length, 1);
+  assert.equal((await f.run(['start', 'demo'])).code, 0);
 });

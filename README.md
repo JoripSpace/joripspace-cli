@@ -1,5 +1,22 @@
 # JoripSpace CLI
 
+## Approval links in 0.8.0 (release preparation)
+
+This version is being validated before npm publication. Existing valid CLI logins, MCP OAuth sessions and the five-minute one-time code flow remain supported.
+
+For a new connection, run:
+
+```sh
+joripspace login --browser --no-open --json --cwd PROJECT_ROOT
+```
+
+The CLI checks server support and emits an `approval_pending` JSON event to **stderr** containing a five-minute `approval_url` and `next_action`. Show that link to the user and keep the same process running. The user signs in, checks the account and approves; no code is copied. Omitting `--no-open` launches the browser. The CLI then stores the credential and writes one final JSON result to **stdout** with `status`, `next_action` and, when a project is selected, `next_command`. Never print credentials or the private polling secret; that secret stays in process memory.
+
+For `start PROJECT --json`, follow `error.details.login_command` and then `resume_command`. An unsupported server falls back to the existing `/connect/` and `login --code` flow. Pending, cancellation, expiration and network errors do not trigger fallback or duplicate requests. Use `login --legacy-code` to explicitly select the original terminal code prompt. Already authenticated clients reuse their login without a new approval.
+
+MCP users discover `start_approval_login` and `check_approval_login` through `tools/list`. Use the same initialized MCP session throughout approval and follow returned `status`, `next_action` and `interval`; after connection call `start_project_session`. Servers without those tools retain `start_login` and `exchange_connection_code`.
+
+
 **JoripSpace — Build and deploy web apps with AI agents. Powered by Cosmosfarm.**
 
 The official command-line client for JoripSpace. Connect a project, deploy your app, and manage its database, files, Secrets, and realtime services from your terminal or coding agent.
@@ -71,7 +88,7 @@ Help me get started with JoripSpace project "PROJECT".
 3. Review the existing project and explain the next steps for my task.
 ```
 
-If approval is needed, the response includes a connection link and commands to sign in and resume. After approving the connection, give your agent the five-minute code. It can pass the code without waiting for terminal input:
+If approval is needed, the response includes a connection link and commands to sign in and resume. With a legacy server or client, give your agent the five-minute code after approval. It can pass the code without waiting for terminal input:
 
 ```sh
 joripspace login --code "CONNECTION_CODE" --json
