@@ -1,8 +1,8 @@
 # JoripSpace CLI
 
-## Approval links in 0.8.0 (release preparation)
+## Approval links in 0.8.0
 
-This version is being validated before npm publication. Existing valid CLI logins and MCP OAuth sessions are reused. Only the server retains code APIs for previously released clients.
+CLI 0.8.0 uses browser approval links for new connections. Existing valid CLI logins and MCP OAuth sessions are reused. Only the server retains code APIs for previously released clients.
 
 For a new connection, run:
 
