@@ -10,7 +10,7 @@ For a new connection, run:
 joripspace login --no-open --json --cwd PROJECT_ROOT
 ```
 
-The CLI checks server support and emits an `approval_pending` JSON event to **stderr** containing a five-minute `approval_url` and `next_action`. Show that link to the user and keep the same process running. The user signs in, checks the account and approves; no code is copied. Omitting `--no-open` launches the browser. The CLI then stores the credential and writes one final JSON result to **stdout** with `status`, `next_action` and, when a project is selected, `next_command`. Never print credentials or the private polling secret; that secret stays in process memory.
+The CLI checks server support and emits an `approval_pending` JSON event to **stderr** containing a five-minute `approval_url` and `next_action`. Show that link to the user and keep the same process running. The user signs in, checks the account and approves; no code is copied. Interactive `login` opens the browser unless `--no-open` is set. With `--json`, the CLI prints the link without opening a browser. The CLI then stores the credential and writes one final JSON result to **stdout** with `status`, `next_action` and, when a project is selected, `next_command`. Never print credentials or the private polling secret; that secret stays in process memory.
 
 Current CLI login uses approval links only. Unsupported servers and errors stop login without switching authentication methods. Existing valid logins are reused. The server retains old code APIs only for previously released clients.
 
@@ -61,7 +61,7 @@ joripspace projects
 joripspace start PROJECT --json
 ```
 
-The login command emits approval_url to stderr. Open it in your signed-in browser and approve without entering a code. Keep the process alive until connected, then run start for the selected project.
+The login command opens an approval link in your browser. Sign in if needed, check the account and approve the connection. Keep the command running until it confirms the connection, then run `start` for the selected project. For an agent, use `login --no-open --json`; the pending approval link is emitted to stderr.
 
 `start` connects an existing project. It also prepares the project instructions for your agent and synchronizes source files when required by the connection. To create a project first, see [Create a project](#create-a-project) below.
 
@@ -171,7 +171,7 @@ joripspace report --help
 | Connect domains, schedules, and mail | `domain`, `cron`, `mail` |
 | Inspect errors and usage | `events`, `usage-summary`, `usage-breakdown` |
 | Prepare GitHub workflows or find guidance | `github prepare`, `knowledge search` |
-| Report a problem or suggest an improvement | `report` |
+| Report a problem or suggest an improvement | `report`, `feedback` |
 | Identify or revoke a connection token | `tokens current`, `tokens revoke` |
 
 The [CLI reference](https://joripspace.com/en/docs/cli/) covers the command groups and common options. GitHub source synchronization and template Git history features also require Git.
@@ -182,14 +182,14 @@ Use `report` while connected to the relevant project. Choose `problem` for a gen
 
 ```sh
 joripspace report --project PROJECT --category bug --summary "Deployment status is incorrect" --details "Steps to reproduce the issue" --json
-joripspace report --project PROJECT --category feedback --summary "Add deployment history filters" --expected "Search by label" --json
+joripspace feedback --project PROJECT --summary "Add deployment history filters" --expected "Search by label" --json
 ```
 
 A summary is required. You can add context with `--details`, describe the desired and current behavior with `--expected` and `--actual`, or include an error code with `--error-code`. CLI, Node.js, and OS information is attached automatically.
 
 Review the content before sending and leave out credentials, personal data, and private source code. If you are working with an agent, ask it to submit the report when you are ready. A successful response includes the report ID, `report_id`. If the response is interrupted, the report may already have been received, so avoid sending the same report repeatedly.
 
-`feedback` is a category of `report`, not a separate command. The feedback category and dedicated `report --help` are available in CLI 0.6.1 and later.
+`feedback` is a CLI 0.8.0 wrapper for `report --category feedback`. It shares the same options, authentication, submission and response. Use `feedback --help` for details. Older CLIs can use `report --category feedback`, available since 0.6.1. MCP agents also submit feedback through the CLI.
 
 ## Revoke an exposed connection token
 
@@ -200,7 +200,7 @@ joripspace tokens current
 joripspace tokens revoke --current
 ```
 
-`tokens current` shows the ID without revealing the token value. Revoking the token ends the current connection and any MCP sessions using the same token. Use a fresh connection code to connect again.
+`tokens current` shows the ID without revealing the token value. Revoking the token ends the current connection and any MCP sessions using the same token. Run `joripspace login` to approve a new connection.
 
 To revoke a token from an older connection, sign in with another valid token in the same account and specify the exact ID:
 
@@ -233,7 +233,21 @@ joripspace secret list --json
 
 An existing active value is preserved. For a key issued by an external provider, use `secret set --name API_KEY --value-stdin --json`, or its alias, `secret update`. Pass the exact value through standard input rather than command arguments, chat, logs, source, or temporary project files. Input must be 1–5120 UTF-8 bytes; whitespace and newlines are preserved. Secret values are never returned.
 
-You can also enter a key on the selected project's Secret page. `start` and Secret command responses include its `secret_management_url`, which your agent can show as a clickable link. Choose **Register or replace** to save the value, then check the name, status, and change time with `secret list`. Test the service connection afterward. Secret deletion remains a web operation, and all changes require project access and valid, non-reserved key names.
+### Let the user enter a value
+
+When the user needs to supply a value, prepare a link for the required key:
+
+```sh
+joripspace secret list --project PROJECT --name SECRET_NAME --json
+```
+
+This reads the registered key metadata without creating or changing a value. Show the returned `secret_management_url` as a clickable link and explain what the value is needed for. The page opens with the key selected and the value field focused. The user enters the value and selects **Save**, or **Update** when replacing an existing value. Values do not belong in chat or URLs. Do not generate a placeholder for a value the user must supply.
+
+After the user confirms saving, run the same command again. Confirm that the key is registered; for a replacement, require `updated_at` to be newer than the initial `secret_entry.previous_updated_at`. Then test the feature that uses the value. The API's `active` status means the key is registered; it does not prove the application is using it or that an external service connection works.
+
+`secret_entry.verify_with` supplies CLI arguments and the existing MCP `list_secrets` call for this check. MCP accepts the same optional `name` argument. Keep the initial replacement timestamp until verification is complete.
+
+The Secret page also provides **Change** and **Delete** for each key. Change opens that key's value field; deletion requires confirmation. Secret deletion remains a web operation. All changes require project access and a valid, non-reserved key name.
 
 ## Create a project
 
@@ -301,14 +315,3 @@ Third-party dependencies retain their original licenses and copyrights. See [Thi
 - Platform problems and suggestions: use `joripspace report` from a connected project.
 - CLI repository issues: [GitHub Issues](https://github.com/JoripSpace/joripspace-cli/issues)
 - Email: [support@cosmosfarm.com](mailto:support@cosmosfarm.com)
-
-## Feedback (CLI 0.8.0)
-
-`joripspace feedback --project PROJECT --summary "SUGGESTION" --json` wraps
-`joripspace report --category feedback` with the same arguments, authentication, submission and response.
-Use `joripspace feedback --help` for options. MCP sessions also submit through this CLI command.
-Older CLIs can continue using `report --category feedback`.
-
-### User-entered provider keys
-
-Run `secret list --project PROJECT --name PROVIDER_KEY --json` to prepare a value-only input link without creating a Secret. Show `secret_management_url` and explain the key purpose. The page prefills the name and focuses the value field. The user enters only the value and saves. Keep the initial `secret_entry.previous_updated_at` when replacement is required, then verify active metadata and a newer timestamp after confirmation. MCP uses the existing `list_secrets` tool with its optional `name` argument. Never generate a placeholder value for a provider key or put a value in a URL or chat.
