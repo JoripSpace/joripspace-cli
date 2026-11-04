@@ -308,3 +308,7 @@ Third-party dependencies retain their original licenses and copyrights. See [Thi
 `joripspace report --category feedback` with the same arguments, authentication, submission and response.
 Use `joripspace feedback --help` for options. MCP sessions also submit through this CLI command.
 Older CLIs can continue using `report --category feedback`.
+
+### User-entered provider keys
+
+Run `secret list --project PROJECT --name PROVIDER_KEY --json` to prepare a value-only input link without creating a Secret. Show `secret_management_url` and explain the key purpose. The page prefills the name and focuses the value field. The user enters only the value and saves. Keep the initial `secret_entry.previous_updated_at` when replacement is required, then verify active metadata and a newer timestamp after confirmation. MCP uses the existing `list_secrets` tool with its optional `name` argument. Never generate a placeholder value for a provider key or put a value in a URL or chat.

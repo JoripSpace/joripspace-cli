@@ -50,7 +50,7 @@ test('set and update create/replace arbitrary values via stdin without returning
     const result = await f.run([command, '--name', 'provider_key', '--value-stdin'], values[index]);
     assert.equal(result.code, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout), {
-      status: 'success', project_id: 'demo', name: 'PROVIDER_KEY', secret_management_url: PAGE,
+      status: 'success', project_id: 'demo', name: 'PROVIDER_KEY', secret_management_url: `${PAGE}&secret_name=PROVIDER_KEY`,
     });
     assert.ok(!(result.stdout + result.stderr).includes(values[index]));
     assert.deepEqual(f.calls[index], {
@@ -98,7 +98,7 @@ test('server failures never echo complete or partial input values and retain a m
   assert.ok(!result.stderr.includes(secret.slice(0, 12)));
   const body = JSON.parse(result.stderr);
   assert.equal(body.error.code, 'secret_set_failed');
-  assert.equal(body.error.details.secret_management_url, PAGE);
+  assert.equal(body.error.details.secret_management_url, `${PAGE}&secret_name=API_KEY`);
   assert.equal(body.error.details.http_status, 403);
 });
 
@@ -110,7 +110,7 @@ test('generate and list expose the selected project management page; deletion st
   const generated = await f.run(['generate', '--name', 'KEY']);
   assert.equal(generated.code, 0, generated.stderr);
   assert.equal(JSON.parse(generated.stdout).created, false);
-  assert.equal(JSON.parse(generated.stdout).secret_management_url, PAGE);
+  assert.equal(JSON.parse(generated.stdout).secret_management_url, `${PAGE}&secret_name=KEY`);
   const listed = await f.run(['list']);
   assert.equal(listed.code, 0, listed.stderr);
   assert.equal(JSON.parse(listed.stdout).secret_management_url, PAGE);
@@ -125,4 +125,22 @@ test('start gives agents the project page and explicit creation/replacement inst
   assert.match(onboarding.instructions, /secret set --name NAME --value-stdin --json/);
   assert.match(onboarding.instructions, /external server, provider, or system/);
   assert.match(onboarding.instructions, /clickable link/);
+});
+
+
+test('named list prepares value-only entry without writes and preserves replacement timestamps', async t => {
+  const f = await fixture(t, () => ({ body: { secrets: [{ name: 'EXISTING_KEY', status: 'active', updated_at: '2026-11-01T00:00:00Z' }] } }));
+  const fresh = JSON.parse((await f.run(['list', '--name', 'provider_key'])).stdout);
+  assert.equal(fresh.secret_management_url, PAGE + '&secret_name=PROVIDER_KEY');
+  assert.equal(fresh.secret_entry.status, 'not_registered');
+  assert.equal(fresh.secret_entry.operation, 'create');
+  const existing = JSON.parse((await f.run(['list', '--name', 'existing_key'])).stdout);
+  assert.equal(existing.secret_entry.status, 'active');
+  assert.equal(existing.secret_entry.operation, 'replace');
+  assert.equal(existing.secret_entry.previous_updated_at, '2026-11-01T00:00:00Z');
+  assert.match(existing.secret_entry.verification, /newer than previous_updated_at/);
+  assert.deepEqual(existing.secret_entry.verify_with.cli_args, ['secret','list','--project','demo','--name','EXISTING_KEY','--json']);
+  assert.deepEqual(f.calls.map(call => call.method), ['GET', 'GET']);
+  for (const name of ['DB', 'CF_TOKEN', 'bad-name']) assert.notEqual((await f.run(['list','--name',name])).code, 0);
+  assert.equal(f.calls.length, 2);
 });

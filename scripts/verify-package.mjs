@@ -170,7 +170,7 @@ try {
   const secretSet = await run([entry, 'secret', 'update', '--project', 'demo', '--name', 'PROVIDER_KEY', '--value-stdin', '--json'], project, secretValue);
   assert.equal(secretSet.code, 0, secretSet.stderr);
   assert.ok(!(secretSet.stdout + secretSet.stderr).includes(secretValue));
-  assert.equal(JSON.parse(secretSet.stdout).secret_management_url, 'https://joripspace.com/projects/demo/?tab=secrets');
+  assert.equal(JSON.parse(secretSet.stdout).secret_management_url, 'https://joripspace.com/projects/demo/?tab=secrets&secret_name=PROVIDER_KEY');
   assert.ok(requests.some(request => request.url === '/v1/projects/demo/secrets' && JSON.parse(request.body).value === secretValue));
   report.checks.push('packaged_secret_replacement_exact_stdin_without_value_output_and_project_page');
   const feedbackArgs = ['--project', 'demo', '--summary', 'History filters', '--details', 'Filter by status', '--expected', 'Filtered results', '--actual', 'All results', '--json'];

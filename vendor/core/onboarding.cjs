@@ -15,7 +15,7 @@ const JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES = [
   '.joripspace/local-backups/',
 ];
 const JORIPSPACE_ONBOARDING_GITIGNORE_REMOVALS = ['.joripspace/agent-session.json'];
-const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-11-04T00:20:00+09:00';
+const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-11-04T12:13:33+09:00';
 const JORIPSPACE_WORKFLOW_POLICY = Object.freeze({
   target: 'joripspace',
   guide_required: true,
@@ -232,8 +232,8 @@ const SECRET_RULE_LINES = [
   '- Never put API keys, payment keys, SMS/email keys, database URLs, or tokens in source code, README files, browser JavaScript, screenshots, chat summaries, logs, error messages, or audit metadata.',
   '- Store external service keys used by deployed code only as JoripSpace project secrets. Only the selected project User Worker secret binding stores the value; the platform DB keeps project-scoped name, status, and lifecycle timestamps only.',
   '- Never copy project Secret values into source code, env.DB, env.STORAGE, deployment source, checkpoint files, saved copies, logs, error messages, or audit metadata.',
-  '- Do not ask the user to paste provider Secret values into chat. Prefer CLI secret set --name NAME --value-stdin for an authorized external value supplied through safe process input; otherwise send them to the selected project Secret web page for user-only entry. Deletion remains a web operation. Verify metadata with CLI secret list or MCP list_secrets. Secret values never appear in list responses or agent reports.',
-  '- Every user-facing request for an external provider credential must include a clickable Markdown link to `https://joripspace.com/projects/{project_id}/?tab=secrets`. Use the selected project slug in place of `{project_id}`. Never mention only the tab name or provide an unlinked URL.',
+  '- Do not ask the user to paste provider Secret values into chat. Prefer CLI secret set --name NAME --value-stdin for an authorized external value supplied through safe process input; otherwise run CLI secret list --name NAME --json, or MCP list_secrets with name, to prepare a user-entry link without creating a placeholder secret. Show the returned secret_management_url and explain the purpose; the name is prefilled and the user enters only the value. After confirmation verify active metadata; for replacement require updated_at newer than the saved previous_updated_at before checking the integration. Deletion remains a web operation. Verify metadata with CLI secret list or MCP list_secrets. Secret values never appear in list responses or agent reports.',
+  '- Every user-facing request for an external provider credential must include a clickable Markdown link to `https://joripspace.com/projects/{project_id}/?tab=secrets&secret_name=NAME`. Include only the validated key name in the URL, never its value. Use the selected project slug in place of `{project_id}`. Never mention only the tab name or provide an unlinked URL.',
   '- Before browser assistance for an external provider credential, explain the exact required binding names, purpose, and chat safety rule. If browser assistance was not already authorized, ask once "제가 브라우저로 비밀 키 등록을 진행할까요?". Do not ask again for already authorized assistance.',
   '- Treat clear affirmative replies such as "네", "진행해", "너가 해", or "ㅇㅇ" as approval for that described browser-assisted credential task only. Approval does not authorize unrelated account changes, credential rotation, billing changes, or destructive actions.',
   "- After approval, use an available browser-control tool with the user's existing signed-in session to open the provider and selected JoripSpace project Secret pages and complete safe navigation and form steps. Never inspect cookies, localStorage, sessionStorage, saved passwords, or unrelated account pages.",
@@ -698,7 +698,7 @@ function projectSecretManagementLines(projectConfig = {}) {
   const projectId = String(projectConfig.project_id || projectConfig.project_slug || '').trim();
   const encodedProjectId = projectId ? encodeURIComponent(projectId) : '{project_id}';
   return [
-    `- Secret management link (always include this as a clickable Markdown link when an external provider credential is required): https://joripspace.com/projects/${encodedProjectId}/?tab=secrets`,
+    `- Secret value entry: use CLI secret list --name NAME --json or MCP list_secrets with name to get https://joripspace.com/projects/${encodedProjectId}/?tab=secrets&secret_name=NAME. Show the returned clickable link and key purpose; the user enters only the value. Do not create a random placeholder for a provider-issued key. Verify registration after confirmation, requiring a newer updated_at when replacing an existing key.`,
   ];
 }
 
