@@ -46,6 +46,37 @@ test('an existing user section remains intact and malformed managed markers are 
     assert.throws(() => core.upsertProjectAgentsContent(malformed), /AGENTS\.md/);
 });
 
+test('repeated server guide updates preserve user instructions on both sides of the managed block', () => {
+  const before = '# User instructions\n\n- 한국어로 답변해 주세요.\n\n<!-- My private project notes -->\n';
+  const after = '\n\n## Team examples\n\n```js\nconst keep = "user example";\n```\n\n- Keep our existing URLs.\n';
+  let document = `${before}\n<!-- joripspace:start -->\nOld policy\n<!-- joripspace:end -->${after}`;
+  for (const version of [1, 2, 3]) {
+    const block = `<!-- joripspace:start -->\nServer policy ${version}\n<!-- joripspace:end -->`;
+    document = core.upsertProjectAgentsContent(document, {}, block);
+    const userContent = document.slice(0, document.indexOf('<!-- joripspace:start -->'));
+    assert.ok(userContent.includes(before));
+    assert.ok(userContent.includes(after.trimEnd()));
+    assert.ok(document.includes(block));
+    assert.equal(document.match(/<!-- joripspace:start -->/g).length, 1);
+    assert.equal(core.upsertProjectAgentsContent(document, {}, block), document);
+  }
+});
+
+test('all server guidance surfaces require frequent safe refresh and preservation of user instructions', () => {
+  for (const text of [core.projectAgentsFile(), core.projectAgentGuidance().instructions, core.AFTER_CONNECTION_RULE_LINES.join('\n')]) {
+    for (const marker of [
+      'start of every new distinct JoripSpace task',
+      'when resuming a session or compacted context',
+      'at major phase transitions during long-running work',
+      'immediately before deployment',
+      'Never replace the entire file with the server default',
+      'verify that the user content remains intact',
+      'explicitly reread AGENTS.md',
+      'never claim a successful check without a server response',
+    ]) assert.ok(text.includes(marker), `Missing guide refresh rule: ${marker}`);
+  }
+});
+
 test('actual agent documents and CLI/public instructions deliver current development guidance', () => {
   const surfaces = {
     agents: core.projectAgentsFile({ project_slug: 'demo' }),
