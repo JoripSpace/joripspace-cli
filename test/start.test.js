@@ -27,9 +27,79 @@ function apiFor(projects, details = {}) {
     if (requestPath === '/v1/me/projects') return { account_id: 'account-test', projects };
     if (requestPath.includes('/deployments'))
       return { deployments: [{ deployment_id: 'dep-1', status: 'success' }] };
-    return { project_id: 'heyenterc', project_slug: 'heyenterc', ...details };
+    return { project_id: 'heyenterc', project_slug: 'heyenterc', agent_guidance: require('../vendor/core/onboarding.cjs').projectAgentGuidance(), ...details };
   };
 }
+
+test('guide-only refresh uses successive server versions without touching application, Git, credentials or legacy files', async () => {
+  const { root, workspace } = fixture();
+  try {
+    const preserved = {
+      'worker.js': 'export default { fetch() { return new Response("keep"); } };\n',
+      '.env.joripspace': 'JORIPSPACE_API_TOKEN=synthetic-do-not-rewrite\nCUSTOM=value\n',
+      'package.json': '{"name":"keep"}\n',
+    };
+    for (const [file, text] of Object.entries(preserved)) writeFileSync(path.join(workspace, file), text);
+    writeFileSync(path.join(workspace, 'AGENTS.md'), '# User instructions\n\n- Keep my rules.\n');
+    writeFileSync(path.join(workspace, 'CLAUDE.md'), '# Personal notes\n');
+    const calls = [];
+    let version = 1;
+    const options = {
+      projectId: 'heyenterc', cwd: workspace, guideOnly: true,
+      gitCommand: 'must-not-execute-git-for-guide-refresh',
+      beforeWorkspaceMigration: () => assert.fail('must not migrate credentials'),
+      apiRequest: async (requestPath) => {
+        calls.push(requestPath);
+        if (requestPath === '/v1/me/projects') return { projects: [{ project_slug: 'heyenterc' }] };
+        assert.equal(requestPath, '/v1/projects/heyenterc');
+        const instructions = `# Server policy version ${version}\n\nSearch the knowledge base first.`;
+        return {
+          deployment: { mode: 'github_actions', repository: 'example/demo', branch: 'main' },
+          agent_guidance: {
+            schema_version: 1, updated_at: `2026-11-05T11:00:0${version}Z`, instructions,
+            agents_md: `# Server default user section must not be copied\n\n<!-- joripspace:start -->\n${instructions}\n<!-- joripspace:end -->`,
+          },
+        };
+      },
+    };
+    for (version of [1, 2]) {
+      const result = await startProject(options);
+      assert.equal(result.guide_only, true);
+      assert.equal(result.context.source_sync, null);
+      const agents = readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8');
+      assert.match(agents, /Keep my rules/);
+      assert.ok(agents.includes(`Server policy version ${version}`));
+      assert.ok(agents.includes(result.onboarding.instructions));
+      assert.doesNotMatch(agents, /Server default user section|onboarding\.md/);
+      if (version === 2) assert.doesNotMatch(agents, /Server policy version 1/);
+      for (const [file, text] of Object.entries(preserved)) assert.equal(readFileSync(path.join(workspace, file), 'utf8'), text);
+      assert.equal(readFileSync(path.join(workspace, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n\n# Personal notes\n');
+      assert.equal(fs.existsSync(path.join(workspace, '.git')), false);
+      assert.equal(fs.existsSync(path.join(workspace, '.gitignore')), false);
+    }
+    assert.equal(calls.length, 4);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('missing or malformed server guidance fails before workspace writes without bundled fallback', async () => {
+  const { root, workspace } = fixture();
+  try {
+    const current = '# User instructions\n\nPreserve this exactly.\n';
+    writeFileSync(path.join(workspace, 'AGENTS.md'), current);
+    for (const guidance of [undefined, {}, { ...require('../vendor/core/onboarding.cjs').projectAgentGuidance(), agents_md: '<!-- joripspace:start -->broken' }]) {
+      await assert.rejects(startProject({
+        projectId: 'heyenterc', cwd: workspace, guideOnly: true,
+        apiRequest: apiFor([{ project_slug: 'heyenterc' }], { agent_guidance: guidance }),
+      }), error => error.code === 'server_guidance_unavailable');
+      assert.equal(readFileSync(path.join(workspace, 'AGENTS.md'), 'utf8'), current);
+      assert.equal(fs.existsSync(path.join(workspace, '.joripspace')), false);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('agent onboarding is inline, portable, and executable without shell argument parsing', () => {
   const { root, workspace } = fixture();
@@ -42,8 +112,8 @@ test('agent onboarding is inline, portable, and executable without shell argumen
     assert.deepEqual(result.read_files, []);
     assert.match(result.instructions, /Read onboarding.read_files explicitly/);
     assert.doesNotMatch(result.instructions, /winget install/);
-    assert.match(result.instructions, /If MCP is unavailable, fetch https:\/\/api\.joripspace\.com\/onboarding\.md/);
-    assert.match(result.instructions, /never run it merely to refresh guidance/);
+    assert.match(result.instructions, /current project instructions from the server/);
+    assert.doesNotMatch(result.instructions, /onboarding\.md|# JoripSpace project onboarding/);
     assert.deepEqual(result.invocation, { command: process.execPath, args: [entry], cwd: specialCwd });
     assert.ok(result.commands.login.args.includes('--no-open'));
     assert.ok(!result.commands.login.args.includes('--code'));
@@ -273,7 +343,7 @@ test('a new empty project embeds the marketplace template choice before project 
           return { projects: [{ project_slug: 'heyenterc', status: 'active' }] };
         }
         if (requestPath === '/v1/projects/heyenterc') {
-          return { project_slug: 'heyenterc', status: 'active', deployment: { mode: 'direct' } };
+          return { project_slug: 'heyenterc', status: 'active', deployment: { mode: 'direct' }, agent_guidance: require('../vendor/core/onboarding.cjs').projectAgentGuidance() };
         }
         if (requestPath === '/v1/projects/heyenterc/deployments?limit=1') {
           return { deployments: [] };

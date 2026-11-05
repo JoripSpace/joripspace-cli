@@ -28,7 +28,7 @@ async function fixture(handler) {
               ? { account_id: 'account-one', projects: [{ project_slug: 'demo', role: 'owner' }] }
               : request.url.endsWith('/deployments?limit=1')
                 ? { deployments: [] }
-                : { project_slug: 'demo', status: 'active', deployment: { mode: 'direct' } },
+                : { project_slug: 'demo', status: 'active', deployment: { mode: 'direct' }, agent_guidance: require('../vendor/core/onboarding.cjs').projectAgentGuidance() },
       };
     }
     response.writeHead(result.status || 200, { 'content-type': 'application/json', ...result.headers });

@@ -15,7 +15,7 @@ const JORIPSPACE_ONBOARDING_GITIGNORE_ENTRIES = [
   '.joripspace/local-backups/',
 ];
 const JORIPSPACE_ONBOARDING_GITIGNORE_REMOVALS = ['.joripspace/agent-session.json'];
-const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-11-04T12:13:33+09:00';
+const JORIPSPACE_AGENT_GUIDE_UPDATED_AT = '2026-11-05T11:38:37Z';
 const JORIPSPACE_WORKFLOW_POLICY = Object.freeze({
   target: 'joripspace',
   guide_required: true,
@@ -149,7 +149,7 @@ const LOCAL_TOOL_READINESS_RULE_LINES = [
 const GUIDE_REFRESH_ONLY_RULE_LINES = [
   'Guide refresh is maintenance-only unless deployment is separately explicit:',
   '- Treat requests whose only intent is "지침 업데이트해", "지침 갱신해", "최신 지침 적용해", "refresh the guide", or equivalent wording as local guide maintenance only. They are not authorization to build, test the application, create a checkpoint, stage files, commit, push, run GitHub Actions, or deploy.',
-  '- For a guide-refresh-only request, call prepare_project_workspace with guide_only=true (use the public onboarding guide without CLI start when MCP is unavailable) and update only the JoripSpace managed block in AGENTS.md, the first-line `@AGENTS.md` import in CLAUDE.md, the canonical `.joripspace/project` marker, plus `JORIPSPACE_GUIDE_CHECKED_AT` in `.env.joripspace`. Preserve user-authored content and unrelated environment entries, and do not modify application source, workflow files, or deployment configuration merely to refresh the guide.',
+  '- For a guide-refresh-only request, call prepare_project_workspace with guide_only=true (or CLI start PROJECT --guide-only --json) and update only the JoripSpace managed block in AGENTS.md, the first-line `@AGENTS.md` import in CLAUDE.md, the canonical `.joripspace/project` marker, plus `JORIPSPACE_GUIDE_CHECKED_AT` in `.env.joripspace`. Preserve user-authored content and unrelated environment entries, and do not modify application source, workflow files, or deployment configuration merely to refresh the guide.',
   '- Do not run create_checkpoint, joripspace:save, deploy_code, deploy_checkpoint, rollback_deployment, git add, git commit, git push, or any deployment workflow for a guide-refresh-only request, even when the project uses GitHub Actions or an automatic deployment route.',
   '- Deployment permission must appear explicitly in the current user request with wording such as "배포해", "운영 반영해", or "사이트에 적용해". A deployment approval from an earlier task or chat message does not carry forward to a later guide refresh.',
   '- If a current request explicitly combines guide refresh with deployment, refresh first, then deploy only the application changes the user explicitly placed in scope after the normal verification gate. Do not manufacture an application deployment merely because managed guide files changed.',
@@ -314,7 +314,7 @@ const PROJECT_PLAN_LIMIT_LINES = [
   '- Unlimited metered usage is OFF by default. On Starter, Pro, and Business, if unlimited metered usage is enabled, quota overage is not blocked and usage continues to be recorded in the billing ledger.',
   '- Monthly overage budget is optional. If the budget is empty, it means no budget cap. If a budget is set, overage is allowed only until the projected monthly amount reaches that cap.',
   '- Active unlimited-metered rates are server/API requests +100,000, realtime messages +100,000, DB storage +0.25GB, file storage +1GB, and realtime concurrent users +50.',
-  '- Speed boost is available on Starter, Pro, and Business. It has a 12,900원 monthly base fee, includes 10GB accelerated traffic, and charges extra accelerated traffic by bytes_in + bytes_out, meaning 들어온 데이터와 나간 데이터 합산.',
+  '- Speed boost is available on Starter, Pro, and Business. It has a 0원 monthly base fee, includes 10GB accelerated traffic, and charges extra accelerated traffic at 200원/GB on every paid plan by bytes_in + bytes_out, meaning 들어온 데이터와 나간 데이터 합산.',
   '- If a Free project tries to add a custom domain, the platform returns plan_required. Explain this as "개인 도메인은 Starter 이상에서 사용할 수 있습니다."',
   '- Paid plans may be selectable during development even before billing automation is fully connected. Do not tell users the selection failed unless the API returns an error.',
   '- User-facing wording: 요금제 제공량을 넘으면 추가 과금 없이 기능이 제한되고 차단 안내 페이지가 표시됩니다.',
@@ -462,8 +462,7 @@ const CHECKPOINT_AGENT_RULE_LINES = [
 const AFTER_CONNECTION_RULE_LINES = [
   'After MCP or CLI setup:',
   ...JORIPSPACE_TOOL_SELECTION_LINES,
-  "- At the start of each new distinct user task, use CLI knowledge search when available; in the MCP fallback, call search_knowledge once with the user's plain request before answering, planning, asking questions, or starting work. Apply the returned user_guidance, recommendation, and actions to both the response and the work, including short user requests. Do not repeat the search for every follow-up in the same task unless the topic changes or current guidance is needed.",
-  '- If search_knowledge returns no direct match, use its prioritized fallback guidance and ask at most three short business questions. If the knowledge service fails, continue with the built-in JoripSpace guide and explain only when the failure blocks the task.',
+  '- If focused searches still return no relevant direct match, use only applicable general fallback guidance and ask at most three short business questions. If the knowledge service fails, continue with the built-in JoripSpace guide and explain only when the failure blocks the task.',
   '- Do not stop with only "yes, it is possible" or a capability checklist.',
   '- Reuse existing valid CLI logins and authenticated MCP sessions without a new approval. New CLI connections use login --no-open --json: show approval_url from stderr, keep the process running, and follow the final stdout next_action/next_command. No code entry is required. For MCP initialize the transport, retain Mcp-Session-Id, and call start_login without arguments; show approval_url, then respect interval and call start_login with the returned request_id in the same session until connected. Continue with start_project_session without token arguments. Pending means wait; denial, expiry and errors must not switch flows or create duplicate approvals. Never request or expose a token; do not browse around or inspect browser storage. The server alone retains old code APIs for already released clients; current clients never fall back to a code flow.',
   '- The user does not need to say "onboarding". After connection succeeds, continue into project selection, workspace file writing, and the first service questions automatically.',
@@ -712,8 +711,6 @@ function projectManagedAgentsBlock() {
     '',
     JORIPSPACE_CLI_GUIDE,
     '',
-    'Public onboarding reference: https://api.joripspace.com/onboarding.md',
-    '',
     'The JoripSpace project is stored in `.joripspace/project`.',
     '',
     'For CLI sessions: Use the installed JoripSpace CLI for JoripSpace infrastructure, domains, and deployment. Do not configure or wait for MCP. For an existing MCP session, use its advertised tools and the web handoffs described above.',
@@ -730,8 +727,17 @@ function projectClaudeFile() {
   return '@AGENTS.md\n';
 }
 
-function upsertProjectAgentsContent(existingContent = '', projectConfig = {}) {
-  const managed = projectManagedAgentsBlock();
+function projectAgentGuidance() {
+  return {
+    schema_version: 1,
+    updated_at: JORIPSPACE_AGENT_GUIDE_UPDATED_AT,
+    instructions: JORIPSPACE_CLI_GUIDE,
+    agents_md: projectAgentsFile(),
+  };
+}
+
+function upsertProjectAgentsContent(existingContent = '', projectConfig = {}, managedBlock) {
+  const managed = managedBlock === undefined ? projectManagedAgentsBlock() : managedBlock;
   const existing = String(existingContent || '');
   const markerPairs = [
     ['<!-- joripspace:start -->', '<!-- joripspace:end -->'],
@@ -2420,6 +2426,7 @@ module.exports = {
   beginnerStartPrompt,
   beginnerStartPrompts,
   projectAgentsFile,
+  projectAgentGuidance,
   projectClaudeFile,
   projectMarkerFile,
   upsertProjectAgentsContent,

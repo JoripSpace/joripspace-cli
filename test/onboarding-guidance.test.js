@@ -50,7 +50,7 @@ test('actual agent documents and CLI/public instructions deliver current develop
   const surfaces = {
     agents: core.projectAgentsFile({ project_slug: 'demo' }),
     public: core.JORIPSPACE_NPM_ONBOARDING_DOCUMENT,
-    start: createStartOnboarding(__filename, __dirname, 'demo', true).instructions,
+    start: createStartOnboarding(__filename, __dirname, 'demo', true, '', core.projectAgentGuidance().instructions).instructions,
   };
   for (const [name, text] of Object.entries(surfaces)) {
     for (const rule of core.JORIPSPACE_TOOL_SELECTION_LINES) {
@@ -95,4 +95,33 @@ test('detailed Secret and recovery rules cannot reintroduce duplicate approval o
     text,
     /제가 직접 확인하고 진행할까요|one-time Secret-work consent|how to paste it back|Ask the user for the MCP\/CLI connection token|prefer MCP automatically/
   );
+});
+
+
+test('generated and refreshed project guidance requires relevant search before asynchronous questions', () => {
+  const userRules = '# Team rules\n\nPreserve our existing application and choices.\n';
+  const refreshed = core.upsertProjectAgentsContent(userRules + '\n<!-- joripspace:start -->\nOld guide\n<!-- joripspace:end -->');
+  assert.ok(refreshed.slice(0, refreshed.indexOf('<!-- joripspace:start -->')).includes(userRules.trimEnd()));
+  const surfaces = {
+    generated: core.projectAgentsFile(),
+    refreshed,
+    start: createStartOnboarding(__filename, __dirname, 'demo', true, '', core.projectAgentGuidance().instructions).instructions,
+    public: core.JORIPSPACE_NPM_ONBOARDING_DOCUMENT,
+    mcp: core.AFTER_CONNECTION_RULE_LINES.join('\n'),
+  };
+  for (const [name, text] of Object.entries(surfaces)) {
+    for (const marker of [
+      'before answering, planning, asking questions, or starting work',
+      'Choose search terms from the user',
+      'Do not add a provider, model, framework, or route',
+      'match_type=fallback is not a direct match',
+      'at most two focused follow-up searches',
+      "inspect the requested project's existing configuration",
+      'including asynchronous questions',
+      'Do not claim to have searched without a completed tool result',
+    ]) assert.ok(text.includes(marker), `${name} missing search rule: ${marker}`);
+  }
+  for (const [name, text] of Object.entries(surfaces).filter(([name]) => name !== 'mcp')) {
+    assert.ok(text.indexOf('## Search before answering or asking questions') < text.indexOf('## Workspace and connection'), `${name} must place search instructions near the start`);
+  }
 });

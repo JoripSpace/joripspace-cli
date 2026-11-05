@@ -1,3 +1,4 @@
+import onboarding from '../vendor/core/onboarding.cjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -153,7 +154,7 @@ try {
         ? { account_id: 'isolated-test-account', projects: [{ project_slug: 'demo', role: 'owner' }] }
         : request.url.startsWith('/v1/projects/demo/realtime-v2/keys')
           ? { keys: [], cursor: null }
-          : { project_slug: 'demo', status: 'active', deployment: { mode: deploymentMode } };
+          : { project_slug: 'demo', status: 'active', deployment: { mode: deploymentMode }, agent_guidance: onboarding.projectAgentGuidance() };
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(result));
   });

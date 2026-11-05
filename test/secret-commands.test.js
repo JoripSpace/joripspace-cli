@@ -120,7 +120,7 @@ test('generate and list expose the selected project management page; deletion st
 });
 
 test('start gives agents the project page and explicit creation/replacement instructions', () => {
-  const onboarding = createStartOnboarding(CLI, process.cwd(), 'demo');
+  const onboarding = createStartOnboarding(CLI, process.cwd(), 'demo', true, '', require('../vendor/core/onboarding.cjs').projectAgentGuidance().instructions);
   assert.equal(onboarding.secret_management_url, PAGE);
   assert.match(onboarding.instructions, /secret set --name NAME --value-stdin --json/);
   assert.match(onboarding.instructions, /external server, provider, or system/);

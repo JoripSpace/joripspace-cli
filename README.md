@@ -315,3 +315,9 @@ Third-party dependencies retain their original licenses and copyrights. See [Thi
 - Platform problems and suggestions: use `joripspace report` from a connected project.
 - CLI repository issues: [GitHub Issues](https://github.com/JoripSpace/joripspace-cli/issues)
 - Email: [support@cosmosfarm.com](mailto:support@cosmosfarm.com)
+
+## Refresh project instructions
+
+`joripspace start PROJECT --json` retrieves the current project guide from the server and updates the managed `AGENTS.md` block while preserving user instructions. Guide content changes are deployed on the server and do not require a new CLI release.
+
+Use `joripspace start PROJECT --guide-only --json` to refresh instructions without synchronizing application source, restoring deployments or migrating legacy files. This updates only the managed `AGENTS.md` block, the `CLAUDE.md` import and the project marker. MCP provides the same server-managed instructions through `prepare_project_workspace` with `guide_only: true`. The legacy `/onboarding.md` URL is not used for refresh.

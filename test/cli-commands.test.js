@@ -52,6 +52,9 @@ function apiServer(handler) {
     for await (const chunk of request) text += chunk;
     const body = text ? JSON.parse(text) : null;
     const result = await handler(request, body);
+    if (request.method === 'GET' && /^\/v1\/projects\/[^/?]+$/.test(request.url) && result?.body && !result.body.error) {
+      result.body.agent_guidance = require('../vendor/core/onboarding.cjs').projectAgentGuidance();
+    }
     response.writeHead(result?.status || 200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(result?.body ?? {}));
   });

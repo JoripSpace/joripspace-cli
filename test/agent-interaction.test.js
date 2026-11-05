@@ -63,7 +63,7 @@ async function fixture(t, { rejectAuth = false, approvalLink = true } = {}) {
             ? { account_id: 'interaction-account', projects: [{ project_slug: 'demo', role: 'owner' }] }
             : request.url.endsWith('/deployments?limit=1')
               ? { deployments: [] }
-              : { project_slug: 'demo', status: 'active', deployment: { mode: 'direct' } };
+              : { project_slug: 'demo', status: 'active', deployment: { mode: 'direct' }, agent_guidance: require('../vendor/core/onboarding.cjs').projectAgentGuidance() };
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(result));
   });
