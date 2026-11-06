@@ -99,7 +99,7 @@ The CLI connection works without a plugin or MCP setup. If you also use MCP, its
 
 ### Project instructions
 
-`start` returns a guide and writes it into a marked JoripSpace section in `AGENTS.md`. New files place `User instructions` first, followed by `JoripSpace managed instructions`. Existing user content is preserved, and `CLAUDE.md` keeps a reference to `AGENTS.md`.
+`start` retrieves the current guide from the project server and writes it into a marked JoripSpace section in `AGENTS.md`. New files place `User instructions` first, followed by `JoripSpace managed instructions`. Existing user content is preserved, and `CLAUDE.md` keeps a reference to `AGENTS.md`.
 
 Your agent can use the returned guide immediately. If it does not load project files automatically, ask it to read the listed files in the current conversation. No agent restart is needed for this workflow.
 
@@ -139,14 +139,17 @@ CLI's `deploy --help` before using it. Existing published CLIs can use the manua
 
 ## Refresh guidance without changing app source
 
-`start` can synchronize GitHub source or restore a deployment into an empty workspace. Do not use it merely to
-refresh instructions. For guide-only maintenance, authenticated MCP clients call `prepare_project_workspace`
-with `guide_only: true`; the server omits source sync, legacy migrations, scaffold recovery, and service questions.
-This is a server capability, not a new CLI option.
+In CLI 0.8.1 and later, use the guide-only option to retrieve current instructions from the project server:
 
-Without MCP, fetch `https://api.joripspace.com/onboarding.md` and use the section starting at the heading line
-`# JoripSpace project onboarding` to refresh only the bounded JoripSpace block in `AGENTS.md` and maintain the
-`CLAUDE.md` import. Preserve user instructions, the project marker, credentials, and application files.
+```sh
+joripspace start PROJECT --guide-only --json
+```
+
+This updates only the JoripSpace managed block in `AGENTS.md`, the `CLAUDE.md` import and the canonical project marker. User instructions, notes and examples outside the managed block are preserved. It does not synchronize application source, restore deployments or migrate legacy files. A normal `start` can synchronize source, so use `--guide-only` when you only need to refresh instructions.
+
+Authenticated MCP clients use `prepare_project_workspace` with `guide_only: true` for the same server-managed instructions. The legacy `/onboarding.md` URL is not used for refresh. An older CLI needs a one-time upgrade to use `--guide-only`; later guide content changes require only a server update and a project guide refresh.
+
+The guide tells agents to check for updates at the start of each new task, when resuming a session or compacted context, at major phase transitions during long-running work and immediately before deployment. These checks are performed by the agent during its work; they are not background polling or server pushes. After an update, the agent rereads `AGENTS.md` and continues to follow the preserved user instructions.
 
 ## Find a command
 
@@ -262,7 +265,7 @@ checks apply. Creation does not link or change local project source; use `start`
 
 Add `--json` for structured output without browser launch or interactive prompts. Successful results go to stdout, and errors go to stderr. Existing result fields and exit codes `0`, `1`, and `2` are preserved. The shared agent guide is English; CLI notices and prompts follow the OS locale, using Korean for `ko` and English otherwise. JSON field names and error codes remain unchanged. Agreement payloads retain the English text and Korean originals so agents can explain them in your conversation language.
 
-The `onboarding` object provides `schema_version`, `instructions`, `read_files`, `invocation`, and `commands`. It also appears under `error.details.onboarding` when authentication is required, along with the login and resume steps.
+The `onboarding` object provides `schema_version`, `instructions`, `read_files`, `invocation`, and `commands`. When authentication is required, `error.details.onboarding` contains login and resume steps; the full project guide is retrieved after authentication.
 
 For tools that accept a command and argument list, run `invocation.command`, append CLI arguments after `invocation.args`, and use `invocation.cwd` as the working folder. With an npm installation, this runs Node with the absolute JavaScript entrypoint. The `executable`, `login_command`, `resume_command`, and `install_command` fields remain available for existing integrations. In PowerShell, use `&` before a quoted executable path.
 
@@ -315,9 +318,3 @@ Third-party dependencies retain their original licenses and copyrights. See [Thi
 - Platform problems and suggestions: use `joripspace report` from a connected project.
 - CLI repository issues: [GitHub Issues](https://github.com/JoripSpace/joripspace-cli/issues)
 - Email: [support@cosmosfarm.com](mailto:support@cosmosfarm.com)
-
-## Refresh project instructions
-
-`joripspace start PROJECT --json` retrieves the current project guide from the server and updates the managed `AGENTS.md` block while preserving user instructions. Guide content changes are deployed on the server and do not require a new CLI release.
-
-Use `joripspace start PROJECT --guide-only --json` to refresh instructions without synchronizing application source, restoring deployments or migrating legacy files. This updates only the managed `AGENTS.md` block, the `CLAUDE.md` import and the project marker. MCP provides the same server-managed instructions through `prepare_project_workspace` with `guide_only: true`. The legacy `/onboarding.md` URL is not used for refresh.
