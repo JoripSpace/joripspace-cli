@@ -139,7 +139,7 @@ CLI's `deploy --help` before using it. Existing published CLIs can use the manua
 
 ## Refresh guidance without changing app source
 
-In CLI 0.8.1 and later, use the guide-only option to retrieve current instructions from the project server:
+In CLI 0.9.0 and later, use the guide-only option to retrieve current instructions from the project server:
 
 ```sh
 joripspace start PROJECT --guide-only --json

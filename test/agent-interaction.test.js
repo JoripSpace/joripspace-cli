@@ -112,10 +112,11 @@ async function fixture(t, { rejectAuth = false, approvalLink = true } = {}) {
         stderr = '',
         answered = false,
         agreementIndex = 0;
+      // Allow the five-second approval poll plus CLI startup on slower hosts.
       const timer = setTimeout(() => {
         child.kill();
         reject(new Error(`CLI waited for input: ${args.join(' ')}`));
-      }, 8000);
+      }, 30000);
       child.stdout.on('data', (chunk) => {
         stdout += chunk.toString();
         if (!answered && /(?:Connection code|연결 코드): /.test(stdout) && (answer !== undefined || eof)) {
