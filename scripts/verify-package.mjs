@@ -34,9 +34,9 @@ Object.assign(env, {
 writeFileSync(env.npm_config_userconfig, '');
 mkdirSync(join(env.npm_config_prefix, 'bin'), { recursive: true });
 mkdirSync(join(env.npm_config_prefix, 'lib'), { recursive: true });
-function run(args, cwd = project, input = '') {
+function run(args, cwd = project, input = '', executable = process.execPath) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn(process.execPath, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(executable, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, windowsVerbatimArguments: process.platform === 'win32' && executable !== process.execPath });
     let stdout = '', stderr = '';
     child.stdout.setEncoding('utf8').on('data', value => { stdout += value; });
     child.stderr.setEncoding('utf8').on('data', value => { stderr += value; });
@@ -46,8 +46,8 @@ function run(args, cwd = project, input = '') {
     child.once('close', (code, signal) => { clearTimeout(timer); resolveResult({ code, signal, stdout, stderr }); });
   });
 }
-async function checked(args, cwd) {
-  const result = await run(args, cwd);
+async function checked(args, cwd, executable) {
+  const result = await run(args, cwd, '', executable);
   assert.equal(result.code, 0, result.stderr || result.stdout);
   return result;
 }
@@ -128,7 +128,10 @@ try {
     ? join(env.npm_config_prefix, 'joripspace.cmd')
     : join(env.npm_config_prefix, 'bin/joripspace');
   assert.ok(existsSync(globalBin));
-  assert.equal((await checked([npm, 'exec', '--no', '--', 'joripspace', '--version'], temporary)).stdout.trim(), packedPackage.version);
+  const globalVersion = process.platform === 'win32'
+    ? await checked(['/d', '/s', '/c', `""${globalBin}" --version"`], temporary, process.env.ComSpec || 'cmd.exe')
+    : await checked(['--version'], temporary, globalBin);
+  assert.equal(globalVersion.stdout.trim(), packedPackage.version);
   report.checks.push('isolated_global_prefix_install_and_command_resolution');
 
   const requests = [];

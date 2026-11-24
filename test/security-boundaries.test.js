@@ -236,14 +236,14 @@ test('checkpoint protected names cannot appear in ancestors, while nested gitign
   assert.equal(safeRestorePath('nested/.gitignore'), 'nested/.gitignore');
 });
 
-function remote(root, files) {
+function remote(root, files, checkpointId) {
   return createRemoteCommands({
     isProtectedProjectPath,
     requireProjectId: () => 'demo',
     stringFlag: () => '',
     booleanFlag: (flags, name) => Boolean(flags[name]),
-    apiRequest: async () => ({ files }),
-    projectAuth: () => ({}),
+    apiRequest: async () => ({ files, checkpoint_id: checkpointId }),
+    projectAuth: () => ({ apiBaseUrl: 'https://api.example.test', apiToken: 'test-token' }),
     projectWorkspaceDir: () => root,
     writeTextAtomically: (target, content) => {
       fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -277,6 +277,38 @@ test('deployment force and start backupConflicts preserve protected descendants 
   }).pullDeploymentSource({}, { output: false, force: true });
   assert.equal(skipped.restore.files_written, 0);
   assert.equal(skipped.restore.protected_files_skipped.length, 2);
+});
+
+test('deployment pull restores the complete linked checkpoint including binary assets', async (t) => {
+  const { root } = fixture(t);
+  const files = {
+    'src/index.ts': Buffer.from('original TypeScript'),
+    'package.json': Buffer.from('{"scripts":{"build":"build"}}'),
+    'assets/image.bin': Buffer.from([0, 255, 128, 1]),
+    '.joripspace/deploy.json': Buffer.from('{"entrypoint":"worker.js"}'),
+  };
+  restoreApi(t, files);
+  await remote(root, { 'worker.js': 'compiled only' }, 'checkpoint-original').pullDeploymentSource({}, { output: false });
+  for (const [name, bytes] of Object.entries(files).filter(([name]) => !name.startsWith('.joripspace/'))) {
+    assert.deepEqual(fs.readFileSync(path.join(root, name)), bytes);
+  }
+  assert.equal(fs.existsSync(path.join(root, '.joripspace/deploy.json')), false);
+  assert.equal(fs.existsSync(path.join(root, 'worker.js')), false);
+});
+
+test('GitHub deployment pull restores the original source directory as the working project', async (t) => {
+  const { root } = fixture(t);
+  restoreApi(t, {
+    'worker.js': Buffer.from('compiled output'),
+    '.joripspace-source/src/index.ts': Buffer.from('original source'),
+    '.joripspace-source/package.json': Buffer.from('{"name":"original"}'),
+    '.joripspace-source/assets/image.bin': Buffer.from([0, 255]),
+  });
+  await remote(root, { 'worker.js': 'compiled only' }, 'checkpoint-github').pullDeploymentSource({}, { output: false });
+  assert.equal(fs.readFileSync(path.join(root, 'src/index.ts'), 'utf8'), 'original source');
+  assert.equal(fs.existsSync(path.join(root, 'worker.js')), false);
+  assert.equal(fs.existsSync(path.join(root, '.joripspace-source')), false);
+  assert.deepEqual(fs.readFileSync(path.join(root, 'assets/image.bin')), Buffer.from([0, 255]));
 });
 
 function restoreApi(t, archiveFiles, uploaded = []) {

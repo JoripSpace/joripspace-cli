@@ -1,3 +1,5 @@
+const { githubSourceSnapshotStep, GITHUB_SOURCE_STAGE_COMMAND } = require('./github-source.cjs');
+
 function buildGithubWorkflow({
   projectId,
   branch,
@@ -20,7 +22,7 @@ function buildGithubWorkflow({
     triggerType === 'release'
       ? `  release:\n    types:\n      - published`
       : `  push:\n    branches:\n      - ${JSON.stringify(String(triggerRef || branch))}\n  workflow_dispatch:`;
-  return `# joripspace-workflow-version: 8
+  return `# joripspace-workflow-version: 9
 name: JoripSpace Deploy ${JSON.stringify(`(${connectionId})`)}
 
 on:
@@ -39,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Build
+${githubSourceSnapshotStep()}      - name: Build
         run: |
           set -Eeuo pipefail
           trap 'code=$?; echo "::error title=JoripSpace build failed::Build failed at line $LINENO (exit $code)"; exit "$code"' ERR
@@ -64,6 +66,7 @@ ${commands}
           rm -rf "$stage_dir"
           mkdir -p "$stage_dir"
           cp -R "$source_dir"/. "$stage_dir"/
+${GITHUB_SOURCE_STAGE_COMMAND}
           JORIPSPACE_STAGE_DIR="$stage_dir" node --input-type=module -e '
             import { writeFile } from "node:fs/promises";
             import { join } from "node:path";
