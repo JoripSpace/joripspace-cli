@@ -58,6 +58,8 @@ function apiServer(handler) {
     response.writeHead(result?.status || 200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(result?.body ?? {}));
   });
+  // Approval polling waits five seconds; avoid racing the mock server's default idle timeout.
+  server.keepAliveTimeout = 60_000;
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
