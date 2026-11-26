@@ -2,27 +2,6 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { createCredentialStore, normalizeCredentialApiUrl } = require('../lib/credential-store');
 
-test('administrator and normal account credentials remain independent on the same API', () => {
-  const records = new Map();
-  class Entry {
-    constructor(service, key) { this.key = `${service}:${key}`; }
-    getPassword() { return records.get(this.key) ?? null; }
-    setPassword(value) { records.set(this.key, value); }
-    deleteCredential() { return records.delete(this.key); }
-  }
-  const binding = () => ({ Entry });
-  const user = createCredentialStore(binding);
-  const admin = createCredentialStore(binding, process.platform, 'com.joripspace.cli.admin.v1');
-  const apiBaseUrl = 'https://api.example';
-  user.save({ apiBaseUrl, accountId: 'user', apiToken: 'user-secret' });
-  admin.save({ apiBaseUrl, accountId: 'admin', apiToken: 'admin-secret' });
-  assert.equal(user.load(apiBaseUrl).apiToken, 'user-secret');
-  assert.equal(admin.load(apiBaseUrl).apiToken, 'admin-secret');
-  admin.remove(apiBaseUrl);
-  assert.equal(user.load(apiBaseUrl).apiToken, 'user-secret');
-  assert.equal(admin.load(apiBaseUrl), null);
-});
-
 function fixture(platform = process.platform) {
   const records = new Map();
   const calls = [];

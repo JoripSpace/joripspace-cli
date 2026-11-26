@@ -1,20 +1,5 @@
 # JoripSpace CLI
 
-## 관리자 신고 관리
-
-기존 관리자 인증정보를 표준 입력으로 전달해 `joripspace admin login --token-stdin`을 한 번 실행합니다. 인증정보는 일반 계정 로그인과 분리해 OS 보안 저장소에 보관하며, 프로젝트 파일에는 저장하지 않습니다. 일반 계정 로그인만으로 관리자 권한을 부여하지 않습니다.
-
-```sh
-joripspace admin reports list --status open --limit 20 --json
-joripspace admin reports get REPORT_ID --json
-joripspace admin reports update REPORT_ID --status resolved --json
-joripspace admin logout
-```
-
-`REPORT_ID`에는 `air_`로 시작하는 신고 ID를 넣습니다. 상태는 `open`(미처리), `resolved`(처리 완료), `dismissed`(제외)를 지원합니다. 목록은 `--category problem|bug|feedback`으로 필터링하고, 응답의 `next_cursor`를 다음 호출의 `--cursor`에 전달해 이어서 조회합니다. 일회성 호출은 로그인 대신 조회·수정 명령에 `--token-stdin`을 붙여 인증정보를 전달할 수 있습니다. 인증정보를 명령 인자나 채팅에 넣지 마세요.
-
-관리자 명령의 기본 API는 `https://api.joripspace.com`이며 다른 서버는 `--api-url`로 명시합니다. 프로젝트 파일이나 환경 변수의 API 주소는 관리자 인증 대상을 바꾸지 않습니다.
-
 ## Approval links in 0.8.0
 
 CLI 0.8.0 uses browser approval links for new connections. Existing valid CLI logins and MCP OAuth sessions are reused. Only the server retains code APIs for previously released clients.

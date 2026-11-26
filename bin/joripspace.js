@@ -10,7 +10,6 @@ const { formatDeploymentFailure } = require('../lib/deployment-error');
 const {
   printHelp,
   printReportHelp,
-  printAdminHelp,
   printDeployHelp,
   printDeployTemplateHelp,
   printInstallTemplateHelp,
@@ -19,7 +18,6 @@ const { createTemplateCommands } = require('../lib/template-commands');
 const { createCheckpointCommands } = require('../lib/checkpoint-commands');
 const { createRealtimeV2Commands } = require('../lib/realtime-v2-commands');
 const { createGithubCommands } = require('../lib/github-commands');
-const { createAdminReportCommands } = require('../lib/admin-report-commands');
 const { createProjectCommand } = require('../lib/project-create');
 const {
   assertDeployableProjectPath,
@@ -121,7 +119,6 @@ const githubCommand = createGithubCommands({
 });
 
 const DEFAULT_API_URL = 'https://api.joripspace.com';
-const adminCommand = createAdminReportCommands({ apiRequest, output, stringFlag, defaultApiUrl: DEFAULT_API_URL });
 const createProject = createProjectCommand({
   apiRequest,
   output,
@@ -166,10 +163,6 @@ async function main() {
 
   if ((command === 'report' || command === 'feedback') && (flags.help || flags.h)) {
     printReportHelp(command);
-    return;
-  }
-  if (command === 'admin' && (flags.help || flags.h)) {
-    printAdminHelp();
     return;
   }
 
@@ -222,9 +215,6 @@ async function main() {
       return;
     case 'report':
       await reportAgentIssue(flags);
-      return;
-    case 'admin':
-      await adminCommand(rest, flags);
       return;
     case 'feedback':
       await reportAgentIssue({ ...flags, category: 'feedback' });
