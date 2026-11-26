@@ -1,4 +1,5 @@
 const { githubSourceSnapshotStep, GITHUB_SOURCE_STAGE_COMMAND } = require('./github-source.cjs');
+const { githubArtifactCommand } = require('./github-artifact.cjs');
 
 function buildGithubWorkflow({
   projectId,
@@ -14,15 +15,12 @@ function buildGithubWorkflow({
     .split('\n')
     .map((line) => `          ${line}`)
     .join('\n');
-  const deployScript = `${inlineDeployMain.toString()}\n\nawait inlineDeployMain();`
-    .split('\n')
-    .map((line) => `          ${line}`)
-    .join('\n');
+  const deployScript = githubDeployScript();
   const trigger =
     triggerType === 'release'
       ? `  release:\n    types:\n      - published`
       : `  push:\n    branches:\n      - ${JSON.stringify(String(triggerRef || branch))}\n  workflow_dispatch:`;
-  return `# joripspace-workflow-version: 9
+  return `# joripspace-workflow-version: 11
 name: JoripSpace Deploy ${JSON.stringify(`(${connectionId})`)}
 
 on:
@@ -67,13 +65,7 @@ ${commands}
           mkdir -p "$stage_dir"
           cp -R "$source_dir"/. "$stage_dir"/
 ${GITHUB_SOURCE_STAGE_COMMAND}
-          JORIPSPACE_STAGE_DIR="$stage_dir" node --input-type=module -e '
-            import { writeFile } from "node:fs/promises";
-            import { join } from "node:path";
-            const root = process.env.JORIPSPACE_STAGE_DIR;
-            const entrypoint = process.env.JORIPSPACE_ENTRYPOINT;
-            await writeFile(join(root, ".joripspace-deploy.json"), JSON.stringify({ entrypoint }) + "\\n");
-          '
+${githubArtifactCommand()}
           (cd "$stage_dir" && find . -type f -exec zip -q "$archive_path" -- {} +)
           JORIPSPACE_ARCHIVE_PATH="$archive_path" node --input-type=module <<'JORIPSPACE_SCRIPT'
 ${deployScript}
@@ -91,123 +83,129 @@ function projectGithubActionsTemplateFile(projectConfig = {}) {
   });
 }
 
-async function inlineDeployMain() {
-  const { open } = await import('node:fs/promises');
-  const audience = 'https://api.joripspace.com/v1/external-builds/github';
-  const projectId = requiredEnv('JORIPSPACE_PROJECT_ID');
-  const connectionId = String(process.env.JORIPSPACE_CONNECTION_ID || '').trim();
-  const archivePath = requiredEnv('JORIPSPACE_ARCHIVE_PATH');
-  const apiUrl = requiredEnv('JORIPSPACE_API_URL').replace(/\/+$/, '');
-  const oidcToken = await requestOidcToken();
-  const create = await api(`/v1/projects/${encodeURIComponent(projectId)}/checkpoint-uploads`, {
-    method: 'POST',
-    token: oidcToken,
-    json: { source_type: 'deployment' },
-  });
-  const file = await open(archivePath, 'r');
-  try {
-    const chunkSize = Number(create.chunk_size || 8 * 1024 * 1024);
-    const buffer = Buffer.alloc(chunkSize);
-    let partNumber = 1;
-    let position = 0;
-    while (true) {
-      const { bytesRead } = await file.read(buffer, 0, buffer.length, position);
-      if (bytesRead === 0) break;
-      const partPath = String(create.upload_part_url_template).replace('{part_number}', String(partNumber));
-      await api(partPath, {
-        method: 'PUT',
-        token: oidcToken,
-        body: buffer.subarray(0, bytesRead),
-        contentType: 'application/octet-stream',
-      });
-      position += bytesRead;
-      partNumber += 1;
-    }
-    if (position === 0) throw new Error('Build artifact ZIP is empty.');
-  } finally {
-    await file.close();
-  }
-  await api(create.complete_url, { method: 'POST', token: oidcToken, json: {} });
-  const deployPath = `/v1/projects/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(create.checkpoint_id)}/deploy`;
-  for (let attempt = 1; attempt <= 150; attempt += 1) {
-    const deployToken = await requestOidcToken();
-    const result = await api(deployPath, {
-      method: 'POST',
-      token: deployToken,
-      json: {},
-      allowedStatuses: [404, 409],
-    });
-    if (!result.__retry) {
-      process.stdout.write(
-        `JoripSpace deployment succeeded: ${result.url || result.default_url || result.deployment_id || projectId}\n`
-      );
-      return;
-    }
-    if (
-      !['checkpoint_not_found', 'checkpoint_not_ready', 'external_build_deploy_busy'].includes(
-        result.error?.code
-      )
-    ) {
-      throw apiError(result.__status, result);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  }
-  throw new Error('JoripSpace artifact processing did not finish within 5 minutes.');
+const GITHUB_DEPLOY_SCRIPT = [
+  "async function inlineDeployMain() {",
+  "  const { open } = await import('node:fs/promises');",
+  "  const audience = 'https://api.joripspace.com/v1/external-builds/github';",
+  "  const projectId = requiredEnv('JORIPSPACE_PROJECT_ID');",
+  "  const connectionId = String(process.env.JORIPSPACE_CONNECTION_ID || '').trim();",
+  "  const archivePath = requiredEnv('JORIPSPACE_ARCHIVE_PATH');",
+  "  const apiUrl = requiredEnv('JORIPSPACE_API_URL').replace(/\\/+$/, '');",
+  "  const oidcToken = await requestOidcToken();",
+  "  const create = await api(`/v1/projects/${encodeURIComponent(projectId)}/checkpoint-uploads`, {",
+  "    method: 'POST',",
+  "    token: oidcToken,",
+  "    json: { source_type: 'deployment' },",
+  "  });",
+  "  const file = await open(archivePath, 'r');",
+  "  try {",
+  "    const chunkSize = Number(create.chunk_size || 8 * 1024 * 1024);",
+  "    const buffer = Buffer.alloc(chunkSize);",
+  "    let partNumber = 1;",
+  "    let position = 0;",
+  "    while (true) {",
+  "      const { bytesRead } = await file.read(buffer, 0, buffer.length, position);",
+  "      if (bytesRead === 0) break;",
+  "      const partPath = String(create.upload_part_url_template).replace('{part_number}', String(partNumber));",
+  "      await api(partPath, {",
+  "        method: 'PUT',",
+  "        token: oidcToken,",
+  "        body: buffer.subarray(0, bytesRead),",
+  "        contentType: 'application/octet-stream',",
+  "      });",
+  "      position += bytesRead;",
+  "      partNumber += 1;",
+  "    }",
+  "    if (position === 0) throw new Error('Build artifact ZIP is empty.');",
+  "  } finally {",
+  "    await file.close();",
+  "  }",
+  "  await api(create.complete_url, { method: 'POST', token: oidcToken, json: {} });",
+  "  const deployPath = `/v1/projects/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(create.checkpoint_id)}/deploy`;",
+  "  for (let attempt = 1; attempt <= 150; attempt += 1) {",
+  "    const deployToken = await requestOidcToken();",
+  "    const result = await api(deployPath, {",
+  "      method: 'POST',",
+  "      token: deployToken,",
+  "      json: {},",
+  "      allowedStatuses: [404, 409],",
+  "    });",
+  "    if (!result.__retry) {",
+  "      process.stdout.write(",
+  "        `JoripSpace deployment succeeded: ${result.url || result.default_url || result.deployment_id || projectId}\\n`",
+  "      );",
+  "      return;",
+  "    }",
+  "    if (",
+  "      !['checkpoint_not_found', 'checkpoint_not_ready', 'external_build_deploy_busy'].includes(",
+  "        result.error?.code",
+  "      )",
+  "    ) {",
+  "      throw apiError(result.__status, result);",
+  "    }",
+  "    await new Promise((resolve) => setTimeout(resolve, 2000));",
+  "  }",
+  "  throw new Error('JoripSpace artifact processing did not finish within 5 minutes.');",
+  "",
+  "  async function requestOidcToken() {",
+  "    const requestUrl = requiredEnv('ACTIONS_ID_TOKEN_REQUEST_URL');",
+  "    const requestToken = requiredEnv('ACTIONS_ID_TOKEN_REQUEST_TOKEN');",
+  "    const separator = requestUrl.includes('?') ? '&' : '?';",
+  "    const response = await fetch(`${requestUrl}${separator}audience=${encodeURIComponent(audience)}`, {",
+  "      headers: { Authorization: `Bearer ${requestToken}` },",
+  "    });",
+  "    const payload = await response.json().catch(() => ({}));",
+  "    if (!response.ok || typeof payload.value !== 'string') {",
+  "      throw new Error(`GitHub OIDC token request failed (${response.status}).`);",
+  "    }",
+  "    return payload.value;",
+  "  }",
+  "",
+  "  async function api(path, options) {",
+  "    const url = path.startsWith('http') ? path : `${apiUrl}${path}`;",
+  "    const headers = new Headers({ Authorization: `Bearer ${options.token}`, Accept: 'application/json' });",
+  "    if (connectionId) headers.set('X-JoripSpace-Connection-ID', connectionId);",
+  "    let body = options.body;",
+  "    if (options.json !== undefined) {",
+  "      headers.set('Content-Type', 'application/json');",
+  "      body = JSON.stringify(options.json);",
+  "    } else if (options.contentType) headers.set('Content-Type', options.contentType);",
+  "    const response = await fetch(url, { method: options.method, headers, body });",
+  "    const text = await response.text();",
+  "    const payload = text ? safeJson(text) : {};",
+  "    if (response.ok) return payload;",
+  "    if ((options.allowedStatuses || []).includes(response.status)) {",
+  "      return { ...payload, __retry: true, __status: response.status };",
+  "    }",
+  "    throw apiError(response.status, payload);",
+  "  }",
+  "",
+  "  function apiError(status, payload) {",
+  "    const error = new Error(payload?.error?.message || `JoripSpace request failed (${status}).`);",
+  "    error.code = payload?.error?.code || 'joripspace_request_failed';",
+  "    const diagnostic = JSON.stringify({ http_status: status, code: error.code, message: error.message, details: payload?.error?.details || null })",
+  "      .replace(/((?:authorization|[\\w-]*(?:key|token|secret|password|credential)[\\w-]*)[\"']?\\s*[:=]\\s*[\"']?)[^\"'\\s,}]+/gi, '$1[REDACTED]')",
+  "      .replace(/Bearer\\s+[^\\s\"']+/gi, 'Bearer [REDACTED]').slice(0, 16000);",
+  "    console.error(`JORIPSPACE_DIAGNOSTIC ${diagnostic}`);",
+  "    return error;",
+  "  }",
+  "  function safeJson(value) {",
+  "    try {",
+  "      return JSON.parse(value);",
+  "    } catch {",
+  "      return { error: { code: 'invalid_response', message: value.slice(0, 500) } };",
+  "    }",
+  "  }",
+  "  function requiredEnv(name) {",
+  "    const value = process.env[name];",
+  "    if (!value) throw new Error(`${name} is required.`);",
+  "    return value;",
+  "  }",
+  "}",
+].join('\n');
 
-  async function requestOidcToken() {
-    const requestUrl = requiredEnv('ACTIONS_ID_TOKEN_REQUEST_URL');
-    const requestToken = requiredEnv('ACTIONS_ID_TOKEN_REQUEST_TOKEN');
-    const separator = requestUrl.includes('?') ? '&' : '?';
-    const response = await fetch(`${requestUrl}${separator}audience=${encodeURIComponent(audience)}`, {
-      headers: { Authorization: `Bearer ${requestToken}` },
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || typeof payload.value !== 'string') {
-      throw new Error(`GitHub OIDC token request failed (${response.status}).`);
-    }
-    return payload.value;
-  }
-
-  async function api(path, options) {
-    const url = path.startsWith('http') ? path : `${apiUrl}${path}`;
-    const headers = new Headers({ Authorization: `Bearer ${options.token}`, Accept: 'application/json' });
-    if (connectionId) headers.set('X-JoripSpace-Connection-ID', connectionId);
-    let body = options.body;
-    if (options.json !== undefined) {
-      headers.set('Content-Type', 'application/json');
-      body = JSON.stringify(options.json);
-    } else if (options.contentType) headers.set('Content-Type', options.contentType);
-    const response = await fetch(url, { method: options.method, headers, body });
-    const text = await response.text();
-    const payload = text ? safeJson(text) : {};
-    if (response.ok) return payload;
-    if ((options.allowedStatuses || []).includes(response.status)) {
-      return { ...payload, __retry: true, __status: response.status };
-    }
-    throw apiError(response.status, payload);
-  }
-
-  function apiError(status, payload) {
-    const error = new Error(payload?.error?.message || `JoripSpace request failed (${status}).`);
-    error.code = payload?.error?.code || 'joripspace_request_failed';
-    const diagnostic = JSON.stringify({ http_status: status, code: error.code, message: error.message, details: payload?.error?.details || null })
-      .replace(/((?:authorization|[\w-]*(?:key|token|secret|password|credential)[\w-]*)["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi, '$1[REDACTED]')
-      .replace(/Bearer\s+[^\s"']+/gi, 'Bearer [REDACTED]').slice(0, 16000);
-    console.error(`JORIPSPACE_DIAGNOSTIC ${diagnostic}`);
-    return error;
-  }
-  function safeJson(value) {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return { error: { code: 'invalid_response', message: value.slice(0, 500) } };
-    }
-  }
-  function requiredEnv(name) {
-    const value = process.env[name];
-    if (!value) throw new Error(`${name} is required.`);
-    return value;
-  }
+function githubDeployScript() {
+  return `${GITHUB_DEPLOY_SCRIPT}\n\nawait inlineDeployMain();`.split('\n').map((line) => `          ${line}`).join('\n');
 }
 
-module.exports = { buildGithubWorkflow, projectGithubActionsTemplateFile };
+module.exports = { buildGithubWorkflow, projectGithubActionsTemplateFile, githubDeployScript };

@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { snapshotGithubSource } = require('../vendor/core/github-source.cjs');
+const { GITHUB_SOURCE_SCRIPT } = require('../vendor/core/github-source.cjs');
 
 test('GitHub snapshot keeps original tracked source, config and tests before build with protected files excluded', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'joripspace-github-source-'));
@@ -54,7 +54,7 @@ test('GitHub snapshot keeps original tracked source, config and tests before bui
       GITHUB_RUN_ID: 'test',
       GITHUB_RUN_ATTEMPT: '1',
     });
-    await snapshotGithubSource();
+    await import('data:text/javascript;base64,' + Buffer.from(GITHUB_SOURCE_SCRIPT + '\nawait snapshotGithubSource();').toString('base64'));
     await fs.writeFile(path.join(repo, 'src/index.ts'), 'build changed the source');
     const snapshot = path.join(root, 'joripspace-source-test-1');
     for (const [name, body] of Object.entries(original))

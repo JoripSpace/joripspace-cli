@@ -67,6 +67,7 @@ async function fixture(t, { rejectAuth = false, approvalLink = true } = {}) {
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(result));
   });
+  server.keepAliveTimeout = 60_000;
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
   t.after(async () => {
     server.closeAllConnections();
